@@ -1,0 +1,237 @@
+Gabriel Avila: Então, a gente tem que fazer dois aplicativos, um de compra, que é o formulário normal, que vai passar por várias pessoas, ou uma pessoa só vai ficar nesse?
+
+Guga: Se a gente só falasse da etapa dos processos, será que não era mais fácil?
+
+Gabriel Avila: Processos?
+
+Guga: Como é que funciona? Vamos falar sobre tudo isso. O sistema que a gente quer criar é um sistema que vai ser cadastrado, vai ser colocada as informações do que foi vendido.
+
+Gabriel Avila: Não vai mais ficar na compra, não?
+
+Guga: Agora se a gente botar, se a gente começar por isso aqui, ó.
+
+Gabriel Avila: Tá.
+
+Guga: Né? Assim, começou... Ah, tá.
+
+Gabriel Avila: No segundo, né? Porque na minha cabeça eu separei dois.
+
+Guga: É, não, mas tudo bem. Mas, tipo assim, se a gente seguisse, se a gente tá nesse processo... Porque daí a partir da venda, eu já era compra. Né? É verdade, né?
+
+Gabriel Avila: Ao contrário.
+
+Guga: Eu tava meio pensando... Então, acho que, né? Então, o que é esse processo? Então, assim, vai ter um... A gente vai inserir um novo pedido de venda, incluir as informações de produtos que foram medidos e tal.
+
+Gabriel Avila: Que vão ser importados.
+
+Guga: Que vão ser importados no sistema atual.
+
+Gabriel Avila: E mais adicionar o fornecedor, que é o que falta.
+
+Guga: Isso. Certo.
+
+Gabriel Avila: Isso vai passar para o setor de compras.
+
+Guga: Aí o setor de compras vai gerar um pedido de compra. Aí vai ter um campo de cadastro de fornecedor. Vai gerar um pedido de compras. E nesse sistema vai ter que ter uma listagem em formato de tabela que me mostre o status geral de todas as compras. Certo? Tá. Depois vai ter a parte de recebimento de mercadoria, onde eu vou conseguir pontuar.
+
+Gabriel Avila: Quais produtos já chegaram. Ah, essa é a próxima etapa do de compra. É.
+
+Guga: E depois vai ter um módulo, vamos dizer assim, que é de entrega, que o meu setor de entrega vai pontuar o que foi entregue já. E o que aqui, né? Tá.
+
+Gabriel Avila: Pensando como se fosse um processo.
+
+Guga: Processo, então. Vendeu, comprou, Recebeu, entregou.
+
+Gabriel Avila: Então a gente começa com um objeto que foi exportado do sistema atual, mais o fornecedor. Na próxima etapa do processo é adicionado alguns campos nesse objeto, certo?
+
+Guga: Sim, vai ser adicionado, por exemplo, o preço de compra.
+
+Gabriel Avila: É a etapa de compra. É a primeira etapa.
+
+Guga: Aí, por exemplo, vai ser já no pedido, então vai ter o número de pedido nosso, o número de confirmação do fornecedor.
+
+Gabriel Avila: Então, a primeira etapa é a que lança. O cara exporta o CSV, põe o fornecedor, põe esses dados que você está falando agora, ou isso acontece depois?
+
+Guga: Depois. Ah, tá.
+
+Gabriel Avila: Seria a segunda etapa, vamos dizer.
+
+Guga: A segunda etapa, já. Certo.
+
+Gabriel Avila: Tu já falou tudo na segunda etapa, então?
+
+Guga: Acho que sim.
+
+Gabriel Avila: Então, na terceira etapa agora, Seria a.
+
+Guga: Parte de recebimento, né? Então vai ter lá uma listagem, né? De todos os produtos que eu pedi. E aí eu vou pontuar, né? De acordo com os produtos que estão chegando, o usuário pontua quais produtos já chegaram.
+
+Gabriel Avila: Ah, certo.
+
+Guga: Então ele pode fazer isso de forma individual, um por um. Então, cliquei na cadeira que chegou. Foi a nota fiscal tal, a transportadora, que chegou.
+
+Gabriel Avila: Uma descrição, se deu algum problema.
+
+Guga: Talvez uma avaria, se está tudo ok. E o status. Chegou tudo, né? E daqui a pouco também, com a possibilidade de tu... Às vezes vem uma nota que está na 30, 30 volumes, 30 produtos diferentes numa mesma nota. Em vez de eu ter que ir um por um, escrever sempre as mesmas informações, selecionar tudo.
+
+Gabriel Avila: Porque assim, então tu diz, para esse cara vai aparecer vários itens, vários objetos. Porque a primeira etapa faz um objeto só. A segunda é a coisa de um só também. Ou você também faz todos que estão disponíveis para ele. Vamos pensar nesse processo, sim.
+
+Guga: Mas quando diz objeto, é um produto?
+
+Gabriel Avila: É, objeto é um produto. Porque aqui, na primeira etapa, a gente.
+
+Guga: Lança um objeto só, certo?
+
+Gabriel Avila: É um formulário sobre uma coisa só, uma venda, né?
+
+Guga: Mas a venda pode ser de mais de um produto. Tá. Certo. A venda pode ser de dez produtos, por exemplo.
+
+Gabriel Avila: Mas o que a gente exporta do CSV é sobre uma venda, né?
+
+Guga: Sobre uma venda.
+
+Gabriel Avila: Então ela não diz produto, né?
+
+Guga: O que diz isso aqui?
+
+Gabriel Avila: É isso aí, né?
+
+Guga: Sim, todos esses produtos aqui são de uma venda.
+
+Gabriel Avila: Ah, é uma conta só? Ah, entendi, entendi. Tá, então isso é uma lista de produtos.
+
+Guga: Isso é uma lista de produtos.
+
+Gabriel Avila: Ah, o objeto, ele é uma lista, entendeu?
+
+Guga: É.
+
+Gabriel Avila: Tá, interessante. Então, melhor ainda, tá? Vai ficar bem funcional. Na primeira etapa, a gente vai importar do sistema atual a lista de produtos, e daí a gente vai adicionar um metadado nessa lista, que é o... Fornecedor. Aí na segunda etapa, o funcionário desse setor, todo dia que ele abrir o sistema, vai mostrar os produtos pendentes, as vendas pendentes. E daí nessa venda vai estar a lista de produtos. E aí ele vai ter que adicionar informações em cada um desses produtos ou informações no objeto todo da venda.
+
+Guga: Às vezes eu acho que é em cada um dos produtos, né? porque às vezes numa mesma venda tem produtos de diferentes fornecedores, por exemplo.
+
+Gabriel Avila: Tá, então na primeira etapa o fornecedor é por produto também.
+
+Guga: Não, é um fornecedor por produto, é isso aí, é verdade. Tá, então a venda ainda é um conjunto.
+
+Gabriel Avila: Em algum momento tem alguma coisa, alguma informação além do ID da venda? Acho que é o orçamento que se chama. Que é para toda a venda e não para um produto. Por exemplo, o status de entregue é para a venda toda. Não é para o produto.
+
+Guga: Vai, vai, vai. Pode, às vezes, eu posso entregar produtos separadamente.
+
+Gabriel Avila: Então, por enquanto, é por produto.
+
+Guga: E aí, no meu, entreguei metade das coisas, por exemplo. Aí, no meu status, lá vai estar como parcial, por exemplo.
+
+Gabriel Avila: Parcial, assim.
+
+Guga: Tá, então, acho que já foi bom a gente ter descoberto.
+
+Gabriel Avila: Então, voltando à segunda etapa, o cara, ele... Ele volta a adicionar umas informações dele, todas são do produto. Mas aí vai ter que ter o status, por exemplo, de essa etapa já está concluída, isso aqui já pode passar para a próxima. Porque a gente vai checar, o sistema vai checar, olha, a etapa de compra foi concluída na venda tal, então a venda tal vai aparecer no sistema da agenda, o terceiro etapa, o cara da agenda. Então, antes disso, não aparece pra ele. Entendeu? Então, daí ele vai chegar no dia dele e vai ver o que que tem pra ele de pendente, vendas pendentes. Daí ele vai adicionar as informações dele. Então, o que que ele vai adicionar num produto? Neste teve avalia, nota fiscal... Não, nota fiscal é pra todo mundo quando recebeu, né?
+
+Guga: Ah, recebendo de produto é isso, né?
+
+Gabriel Avila: É, você vai ter que receber, tá bom. Então, teve canastro, depois é compra, né? Tipo... A terceira é de quando chega, que ele tem que ver se chegou certinho, se teve avariação. Então, a nota fiscal é por entrega, não é? Por exemplo, se é uma venda grande, tem várias entregas diferentes para aquela venda.
+
+Guga: É, na nota fiscal, não é pra vida inteira. Porque assim, como às vezes é pro fornecedor diferente, a nota fiscal é a nota fiscal do fornecedor, né? Que ele emitiu pra gente, né? Então, e às vezes o próprio fornecedor, às vezes ele tem algumas coisas que ele manda antes, vai mandando parcial, sabe?
+
+Gabriel Avila: Mas uma nota só ou várias notas?
+
+Guga: Várias notas de vida. Então, cada entendido vai ter que ser separado.
+
+Gabriel Avila: Uma nota para o produto, mas as notas podem se repetir, porque uma nota pode ser para vários produtos.
+
+Guga: Isso, isso. Show de bola.
+
+Gabriel Avila: Tá, e aí, então, quando todos forem entregues e tá tudo certo e nenhuma varia para pedir nenhuma troca nem nada, ele dá o status de que foi, a etapa foi concluída, sei lá. Qualquer nome de status é isso aí.
+
+Guga: Tá, tá. O que o produto...
+
+Gabriel Avila: Passou a ser etapa.
+
+Guga: Foi recebido.
+
+Gabriel Avila: Aí a quarta etapa seria o quê? Quem que é o próximo a tocar nesse objeto aí?
+
+Guga: Aí seria o pessoal do agendamento e de entrega.
+
+Gabriel Avila: Ah, agendamento e de entrega.
+
+Guga: Isso. Que daí, então, recebendo o produto do nosso depósito, ele vai programar. Daí isso é fone, ele vai fazer a programação, enfim, vai fazer todas as coisas aí, entregou.
+
+Gabriel Avila: Mas seria legal se ele também adicionasse status durante o processo dele para a gerência poder visualizar, ou não? Porque eu acho que eles não vão aderir.
+
+Guga: É... Eu acho que poderia ser feito... É, tipo assim, vamos dizer assim, numa venda ali, né? Vamos dizer, um projeto ali que eu tenho de um cliente. Talvez ele poderia adicionar algumas informações, tipo assim, ah, é... Não... o produto chegou e eu não entreguei ainda porque eu não entreguei eu vou dizer não não foi entregue porque a obra está atrasada está programado para primeiro de janeiro só para janeiro então alguma coisa nesse sentido pode ser que faça sentido que é uma coisa que a gente faz aqui também então a.
+
+Gabriel Avila: Quarta etapa também vai adicionar.
+
+Guga: Eu acho.
+
+Gabriel Avila: Que seria mais para o produto por.
+
+Guga: Venda, porque daí ele tá mais preocupado na questão da entrega, mas ao mesmo tempo ele vai poder pontuar o que já foi entregue, por isso é importante.
+
+Gabriel Avila: Ele que planeja as entregas, né? Ele pode fazer mais de uma entrega, sei lá. É, pode fazer mais de uma entrega. Então, acho que ele botaria no sistema o planejamento de entregas dele? Ou é uma coisa que é uma arte, sabe?
+
+Guga: O cara não precisa.
+
+Gabriel Avila: O cara só faz.
+
+Guga: Eu acho que poderia ser só assim, por exemplo, hoje a gente vai lá, programa, faz a programação lá numa agenda que a gente tem ali, foi executada, deu certo. Ele vai lá e vai apontar o que foi entregue. Tipo assim, finalizou o dia, Ele vai apontar o que foi entregue naquele dia. É, só isso aí já seria suficiente.
+
+Gabriel Avila: O sistema do usuário dele seria diferente. Ele veria as entregas que ele tem pendentes para ele ver. E ele teria um lugar para adicionar o que ele fez no dia. Ele não vai adicionar nada, quer dizer, não ser o status de entregue, que é o que ele pode adicionar.
+
+Guga: No caso, até não sei nem, tipo assim, não só mudar as entregas, sabe? Mas, tipo assim, com a possibilidade de vir aqui e selecionar. Não quero, tipo assim, aqui estar no recebimento. Mas da mesma forma, eu vou lá e vai ter um campo aqui, entregas, por exemplo, sei lá. Daí eu boto aqui o código da venda, enfim, e eu vou dizer quais produtos foram entregues. Vou selecionar esse, esse e esse.
+
+Gabriel Avila: Sim.
+
+Guga: Foram entregues.
+
+Gabriel Avila: Então esse sim, ó, garantido, entreguei. E aí?
+
+Guga: Aí vai entregue, daí vai botar a data.
+
+Gabriel Avila: Ele precisaria dizer também, eu vou fazer tal coisa, ou a gente só quer saber mesmo o que foi entregue.
+
+Guga: Acho que pode ser só... Tipo assim.
+
+Gabriel Avila: Eu tive um problema, não entreguei porque tem tal coisa, ou esse microgerenciamento não é necessário. Então, só vai botar produtos que ele entregou mesmo.
+
+Guga: Isso, acho que já vai ser bem bom. Talvez aí depois a gente vai afinando essas coisas, mas acho que é o primeiro momento, né?
+
+Gabriel Avila: Bom, daí com isso, o usuário gerente vai conseguir fazer várias visualizações, já que tem um monte de dados, né? A gente consegue filtrar status tal, todos que entregue, todos que a data tal, prazo, sei lá. Às vezes tu, por exemplo, poderia marcar um item lá que está na etapa X como urgente, por exemplo. Aí o cara da etapa X pensa.
+
+Guga: Que eu vou ter que entregar primeiro.
+
+Gabriel Avila: Porque a prioridade do centro precisa comunicar isso. Isso é útil ou nada a ver.
+
+Guga: É que no fim, como a gente é uma empresa pequena, a gente acaba às vezes conversando. Mas a gente tem... O que acontece? A gente... A gente tem isso tudo aqui, mas acaba ficando restrito pra poucas pessoas com receio de daqui a pouco alguém entrar e fazer uma cagada. Sim, que alguém precisa. É... Então... E aí, dessa forma a gente consegue ter uma maneira mais segura pra até os vendedores estar apontando. Poder ir fazendo consulta. É, vai ter muito menos incomodação entre...
+
+Gabriel Avila: O vendedor, o papel dele é só consultar, né? Consultar. O que que ele não pode ver?
+
+Guga: Na verdade sim eu quero que ele consiga ver isso aqui assim de uma forma que se você vai entrar na minha compra que ele vai me dar um relatório do que que já chegou o que que tá pra chegar qualquer previsão não precisa de valores não precisa.
+
+Gabriel Avila: Pode ser tudo assim a gente ele começa podendo ver tudo e a gente tenta assim, ah, ele não pode ver isso aqui, tem que tirar mesmo, não tem nada assim, pode ver tudo isso. No princípio ele só não pode escrever nada. Tu como gerente, tu quer poder editar um produto em qualquer etapa ou tu não, tu realmente só quer poder lançar os adversários? Pode adversários ser, pode os ter tudo. E aí no final vai ter um cara que vai jogar de volta pro sistema, não é? Quando já foi, o produto já meio que foi arquivado assim, sabe? Tudo dele já foi entregue, tudo certo. Não tem alguém que vai lá e bota de volta?
+
+Guga: Não.
+
+Gabriel Avila: Não.
+
+Guga: Porque tipo assim, vai ser isso aqui, né? Tipo assim, tu tá aqui... Fica aqui, entendeu? Ó, vai ficar aqui como ok e entrega. E... Só que daí, é...
+
+Gabriel Avila: Tá, não, beleza. Mas então, só pra adicionar mais informações importantes aqui, na primeira etapa de todos cadastrar a venda, ou é compra? A venda.
+
+Guga: A venda.
+
+Gabriel Avila: Tem que usar o sistema atual e exportar pra CSV.
+
+Guga: É, vai ter que importar.
+
+Gabriel Avila: Tem que importar, o que que tem que importar lá?
+
+Guga: Os dados da venda, com os produtos da venda. Então vai ter o produto, o ambiente, a quantidade.
+
+Gabriel Avila: Só pra gente ver qual é o campo exato lá do sistema que a gente tem que clicar. Então a gente vai em lista de orçamentos.
+
+Guga: Em lista de orçamentos. Seleciona o orçamento que foi fechado. Tá. Vai em enviar. Salvar arquivo em Excel.
+
+Gabriel Avila: Sim, xls dados. E aí depois entra no xls lá e suporta o CSV. e joga o csv no nosso aplicativo lá, tá? show eu acho que cara, eu acho que é tudo isso eu acho que foi tudo é isso não é? tudo né, falamos tudo então fechou, é isso.

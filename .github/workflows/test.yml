@@ -1,0 +1,58 @@
+name: Gleam Monorepo CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.find.outputs.projects }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: find
+        run: |
+          PROJECTS=$(find . -mindepth 2 -maxdepth 2 -name gleam.toml -printf "%h\n")
+
+          JSON=$(echo "$PROJECTS" | jq -R . | jq -s -c .)
+
+          echo "Found projects:"
+          echo "$JSON"
+
+          echo "projects=$JSON" >> $GITHUB_OUTPUT
+
+  test:
+    needs: discover
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJson(needs.discover.outputs.projects) }}
+
+    name: Test (${{ matrix.project }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          gleam-version: "1.13.0"
+          rebar3-version: "3"
+
+      - name: Install deps
+        working-directory: ${{ matrix.project }}
+        run: gleam deps download
+
+      - name: Run tests
+        working-directory: ${{ matrix.project }}
+        run: gleam test
+
+      - name: Format check
+        working-directory: ${{ matrix.project }}
+        run: gleam format --check src test
+
