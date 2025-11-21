@@ -1,24 +1,13 @@
-# receiving
+# Receiving
 
-[![Package Version](https://img.shields.io/hexpm/v/receiving)](https://hex.pm/packages/receiving)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/receiving/)
+**Purpose**  
+Track inbound goods and record their condition.
 
-```sh
-gleam add receiving@1
-```
-```gleam
-import receiving
+**Use Case**  
+Mark products as received, add NF, transport info, mark as defective.
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
+**System Implications**  
+- Writes receiving metadata per product.
+- Allows multi-item batch updates.
+- Updates status: partial/complete receiving.
 
-Further documentation can be found at <https://hexdocs.pm/receiving>.
-
-## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```

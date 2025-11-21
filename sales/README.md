@@ -1,24 +1,12 @@
-# sales
+# Sales Viewer
 
-[![Package Version](https://img.shields.io/hexpm/v/sales)](https://hex.pm/packages/sales)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/sales/)
+**Purpose**  
+Allow sellers to monitor the status of their customers' orders.
 
-```sh
-gleam add sales@1
-```
-```gleam
-import sales
+**Use Case**  
+Check what arrived, what's pending, and expected timelines.
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
+**System Implications**  
+- Read-only access.
 
-Further documentation can be found at <https://hexdocs.pm/sales>.
-
-## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```
+query and visualization. perhaps use the same visualization page and query of the manager.

@@ -1,24 +1,16 @@
-# sales_intake
+# Sales Intake
 
-[![Package Version](https://img.shields.io/hexpm/v/sales_intake)](https://hex.pm/packages/sales_intake)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/sales_intake/)
+**Purpose**  
+Import sales from the legacy system (CSV → system object). Creates the initial sale + product list.
 
-```sh
-gleam add sales_intake@1
-```
-```gleam
-import sales_intake
+**Use Case**  
+User uploads the exported CSV and confirms the sale entry.
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
+**System Implications**  
+- Creates the root "Sale" object.
+- No editing after creation.
+- Access: read-only after import.
+- No financial data visibility.
 
-Further documentation can be found at <https://hexdocs.pm/sales_intake>.
 
-## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```
+The user will get the data from the old system which is a list of products data about a bought, we then add the suppliers for each one and maybe something more?(check the transcription) -> update bought status

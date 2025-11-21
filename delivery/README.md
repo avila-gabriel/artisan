@@ -1,24 +1,12 @@
-# delivery
+# Delivery & Scheduling
 
-[![Package Version](https://img.shields.io/hexpm/v/delivery)](https://hex.pm/packages/delivery)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/delivery/)
+**Purpose**  
+Confirm which products were delivered to customers.
 
-```sh
-gleam add delivery@1
-```
-```gleam
-import delivery
+**Use Case**  
+Daily marking of delivered items with date.
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
+**System Implications**  
+- Writes delivery metadata per product.
+- Handles partial deliveries.
 
-Further documentation can be found at <https://hexdocs.pm/delivery>.
-
-## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```
