@@ -1,0 +1,3 @@
+- exemplos de exportacoes do sistema atual (apenas para aquela etapa inicial que combinamos, aonde se import alguma coisa do sistema atual (acho que eh a compra ou venda))
+
+-
