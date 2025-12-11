@@ -8,70 +8,250 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 
+// =======================
+// MAIN
+// =======================
+
 pub fn main() {
   let app = lustre.simple(init, update, view)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
-
   Nil
 }
 
-type Model {
-  // As an alternative to controlled inputs, Lustre also supports non-controlled
-  // forms. Instead of us having to manage the state and appropriate messages
-  // for each input, we use the platform and let the browser handle these things
-  // for us.
-  //
-  // Here, we do not need to store the input values in the model, only keeping
-  // the username once the user is logged in!
-  LoginPage(Form(LoginData))
-  SalesIntakePage(
+// =======================
+// ROOT MODEL / MSG
+// =======================
+
+type AppModel {
+  LoginPageModel(LoginModel)
+  SalesIntakePageModel(SalesIntakeModel)
+}
+
+type AppMsg {
+  LoginPageMsg(LoginMsg)
+  SalesIntakePageMsg(SalesIntakeMsg)
+}
+
+fn init(_) -> AppModel {
+  LoginPageModel(login_init(Nil))
+}
+
+fn update(model: AppModel, msg: AppMsg) -> AppModel {
+  case msg {
+    LoginPageMsg(login_msg) -> {
+      case model {
+        LoginPageModel(login_model) -> {
+          case login_update(login_model, login_msg) {
+            LoginStayModel(updated) -> LoginPageModel(updated)
+
+            LoginSuccessModel(username, role) -> {
+              case role {
+                SalesIntake -> SalesIntakePageModel(sales_init(username))
+
+                Purchase -> todo
+
+                Receive -> todo
+
+                Delivery -> todo
+
+                SalesPerson -> todo
+
+                Manager -> todo
+              }
+            }
+          }
+        }
+
+        _ -> model
+      }
+    }
+
+    SalesIntakePageMsg(sales_msg) -> {
+      case model {
+        SalesIntakePageModel(m) ->
+          SalesIntakePageModel(sales_update(m, sales_msg))
+
+        _ -> model
+      }
+    }
+  }
+}
+
+fn view(model: AppModel) -> Element(AppMsg) {
+  html.div(
+    [attribute.class("p-32 mx-auto w-full max-w-2xl space-y-4")],
+    case model {
+      LoginPageModel(m) -> [login_view(m) |> element.map(LoginPageMsg)]
+
+      SalesIntakePageModel(m) -> [
+        sales_view(m) |> element.map(SalesIntakePageMsg),
+      ]
+    },
+  )
+}
+
+// =======================
+// LOGIN APP
+// =======================
+
+type LoginModel {
+  LoginModel(Form(LoginData))
+}
+
+type LoginMsg {
+  UserSubmittedLogin(Result(LoginData, Form(LoginData)))
+}
+
+type LoginUpdateResultModel {
+  LoginStayModel(LoginModel)
+  LoginSuccessModel(String, Role)
+}
+
+fn login_init(_) -> LoginModel {
+  LoginModel(new_login_form())
+}
+
+fn login_update(model: LoginModel, msg: LoginMsg) -> LoginUpdateResultModel {
+  let LoginModel(form) = model
+
+  case msg {
+    UserSubmittedLogin(Ok(LoginData(username:, password:))) -> {
+      case authenticate(username, password) {
+        Ok(role) -> LoginSuccessModel(username, role)
+
+        Error(_) -> panic as "db error?"
+      }
+    }
+
+    UserSubmittedLogin(Error(form)) -> LoginStayModel(LoginModel(form))
+  }
+}
+
+fn login_view(model: LoginModel) -> Element(LoginMsg) {
+  let LoginModel(form) = model
+
+  let handle_submit = fn(values) {
+    form
+    |> form.add_values(values)
+    |> form.run
+    |> UserSubmittedLogin
+  }
+
+  html.form(
+    [
+      attribute.class("p-8 w-full border rounded-2xl shadow-lg space-y-4"),
+      event.on_submit(handle_submit),
+    ],
+    [
+      html.h1([attribute.class("text-2xl font-medium text-purple-600")], [
+        html.text("Sign in"),
+      ]),
+      view_input(form, is: "text", name: "username", label: "Username"),
+      view_input(form, is: "password", name: "password", label: "Password"),
+      html.div([attribute.class("flex justify-end")], [
+        html.button(
+          [
+            attribute.class("text-white text-sm font-bold"),
+            attribute.class("px-4 py-2 bg-purple-600 rounded-lg"),
+          ],
+          [html.text("Login")],
+        ),
+      ]),
+    ],
+  )
+}
+
+// =======================
+// SALES INTAKE APP
+// =======================
+
+type SalesIntakeModel {
+  SalesIntakeModel(
     username: String,
     products: List(Product),
     form: Form(ImportedSale),
   )
 }
 
-pub type ImportedSale {
-  ImportedSale(imported_sale: String)
+type SalesIntakeMsg {
+  ImportedSaleSubmitted(Result(ImportedSale, Form(ImportedSale)))
 }
 
-fn init(_) -> Model {
-  LoginPage(new_login_form())
+fn sales_init(username: String) -> SalesIntakeModel {
+  SalesIntakeModel(username, [], new_imported_sale_form())
+}
+
+fn sales_update(
+  model: SalesIntakeModel,
+  msg: SalesIntakeMsg,
+) -> SalesIntakeModel {
+  let SalesIntakeModel(username, products, form) = model
+
+  case msg {
+    ImportedSaleSubmitted(Ok(ImportedSale(raw))) -> {
+      let products = map_products(raw)
+      SalesIntakeModel(username, products, form)
+    }
+
+    ImportedSaleSubmitted(Error(form)) ->
+      SalesIntakeModel(username, products, form)
+  }
+}
+
+fn sales_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
+  let SalesIntakeModel(_, products, form) = model
+
+  let handle_submit = fn(values) {
+    form
+    |> form.add_values(values)
+    |> form.run
+    |> ImportedSaleSubmitted
+  }
+
+  html.div([], [
+    products_table(products),
+    html.form([event.on_submit(handle_submit)], [
+      view_input(
+        form,
+        is: "file",
+        name: "imported_sale",
+        label: "Imported Sale",
+      ),
+      html.button([], [html.text("Import Sale")]),
+    ]),
+  ])
+}
+
+// =======================
+// SHARED TYPES / HELPERS
+// =======================
+
+pub type ImportedSale {
+  ImportedSale(imported_sale: String)
 }
 
 pub type Product {
   Product(nome: String, ambiente: String, quantidade: Int)
 }
 
-// In addition to our model, we will have a LoginData custom type which we will
-// use to `decode` the form data into.
 type LoginData {
   LoginData(username: String, password: String)
 }
 
-fn new_imported_sale_form() -> Form(ImportedSale) {
-  form.new({
-    use imported_sale <- form.field(
-      "imported_sale",
-      form.parse_string
-        |> form.map(string.trim)
-        |> form.check(parse_products),
-    )
-    form.success(ImportedSale(imported_sale:))
-  })
+pub type Role {
+  SalesIntake
+  Purchase
+  Receive
+  Delivery
+  SalesPerson
+  Manager
 }
 
-fn parse_products(string: String) -> Result(String, String) {
-  todo
+fn authenticate(username: String, password: String) -> Result(Role, Nil) {
+  Ok(SalesIntake)
 }
 
 fn new_login_form() -> Form(LoginData) {
-  // We create an empty form that can later be used to parse, check and decode 
-  // user supplied data.
-  //
-  // If the form is to be used with languages other than English then the
-  // `form.language` function can be used to supply an alternative error
-  // translator.
   form.new({
     use username <- form.field(
       "username",
@@ -94,184 +274,50 @@ fn new_login_form() -> Form(LoginData) {
   })
 }
 
-// UPDATE ----------------------------------------------------------------------
-
-type Msg {
-  // Instead of receiving messages while the user edits the values, we only
-  // receive a single message with all the data once the form is submitted and processed.
-  UserSubmittedForm(Result(LoginData, Form(LoginData)))
-
-  UserSubmittedImportedSaleForm(Result(ImportedSale, Form(ImportedSale)))
+fn new_imported_sale_form() -> Form(ImportedSale) {
+  form.new({
+    use imported_sale <- form.field(
+      "imported_sale",
+      form.parse_string
+        |> form.map(string.trim)
+        |> form.check(parse_products),
+    )
+    form.success(ImportedSale(imported_sale:))
+  })
 }
 
-fn update(model: Model, msg: Msg) -> Model {
-  case msg {
-    UserSubmittedForm(Ok(LoginData(username:, password:))) -> {
-      case authenticate(username, password) {
-        Ok(role) ->
-          case role {
-            SalesIntake ->
-              SalesIntakePage(
-                username:,
-                products: [],
-                form: new_imported_sale_form(),
-              )
-            Delivery -> todo
-            Purchase -> todo
-            Receive -> todo
-          }
-        Error(_) -> panic as "db error?"
-      }
-    }
-    UserSubmittedForm(Error(form)) -> {
-      // Validation failed - store the form in the model to show the errors.
-      LoginPage(form)
-    }
-
-    UserSubmittedImportedSaleForm(Ok(ImportedSale(products))) -> {
-      let products = map_products(products)
-      SalesIntakePage(username: model.username, products:, form: model.form)
-    }
-    UserSubmittedImportedSaleForm(Error(form)) ->
-      SalesIntakePage(model.username, model.products, form)
-  }
+fn parse_products(string: String) -> Result(String, String) {
+  todo
 }
 
-pub type Role {
-  SalesIntake
-  Purchase
-  Receive
-  Delivery
+fn map_products(raw: String) -> List(Product) {
+  todo
 }
 
-fn authenticate(username: String, password: String) -> Result(Role, Nil) {
-  case username {
-    _ -> Ok(SalesIntake)
-  }
-}
+// =======================
+// SHARED VIEWS
+// =======================
 
-// VIEW ------------------------------------------------------------------------
-
-fn view(model: Model) -> Element(Msg) {
-  html.div(
-    [attribute.class("p-32 mx-auto w-full max-w-2xl space-y-4")],
-    case model {
-      LoginPage(form) -> [view_login(form)]
-      SalesIntakePage(_, products:, form:) -> [
-        view_sales_intake(products, form),
-      ]
-    },
-  )
-}
-
-fn products_table(products: List(Product)) -> Element(Msg) {
+fn products_table(products: List(Product)) -> Element(msg) {
   let header =
     html.tr([], [
       html.th([], [html.text("Nome")]),
       html.th([], [html.text("Ambiente")]),
       html.th([], [html.text("Quantidade")]),
     ])
-  let product_rows =
+
+  let rows =
     list.map(products, fn(product) {
+      let Product(nome:, ambiente:, quantidade:) = product
+
       html.tr([], [
-        html.td([], [
-          html.input([attribute.type_("text"), attribute.value(product.nome)]),
-        ]),
-        html.td([], [
-          html.input([
-            attribute.type_("text"),
-            attribute.value(product.ambiente),
-          ]),
-        ]),
-        html.td([], [
-          html.input([
-            attribute.type_("number"),
-            attribute.value(int.to_string(product.quantidade)),
-          ]),
-        ]),
+        html.td([], [html.text(nome)]),
+        html.td([], [html.text(ambiente)]),
+        html.td([], [html.text(int.to_string(quantidade))]),
       ])
     })
-  let table_rows = [header, ..product_rows]
-  html.table([], table_rows)
-}
 
-fn view_sales_intake(
-  products: List(Product),
-  form: Form(ImportedSale),
-) -> Element(Msg) {
-  let handle_submit = fn(values) {
-    form |> form.add_values(values) |> form.run |> UserSubmittedImportedSaleForm
-  }
-
-  html.div([], [
-    products_table(products),
-    html.form([event.on_submit(handle_submit)], [
-      view_input(
-        form,
-        is: "file",
-        name: "imported_sale",
-        label: "Imported Sale",
-      ),
-      html.button([], [html.text("Import Sale")]),
-    ]),
-  ])
-}
-
-fn view_receive(model: Model) -> Element(Msg) {
-  todo
-}
-
-fn view_purchase(model: Model) -> Element(Msg) {
-  todo
-}
-
-fn view_delivery(model: Model) -> Element(Msg) {
-  todo
-}
-
-fn view_login(form: Form(LoginData)) -> Element(Msg) {
-  // Lustre sends us the form data as a list of tuples, which we can then
-  // process, decode, or send off to our backend.
-  //
-  // Here, we use `formal` to turn the form values we got into Gleam data.
-  let handle_submit = fn(values) {
-    form |> form.add_values(values) |> form.run |> UserSubmittedForm
-  }
-
-  html.form(
-    [
-      attribute.class("p-8 w-full border rounded-2xl shadow-lg space-y-4"),
-      // The message provided to the built-in `on_submit` handler receives the
-      // `FormData` associated with the form as a List of (name, value) tuples.
-      //
-      // The event handler also calls `preventDefault()` on the form, such that
-      // Lustre can handle the submission instead off being sent off to the server.
-      event.on_submit(handle_submit),
-    ],
-    [
-      html.h1([attribute.class("text-2xl font-medium text-purple-600")], [
-        html.text("Sign in"),
-      ]),
-      //
-      view_input(form, is: "text", name: "username", label: "Username"),
-      view_input(form, is: "password", name: "password", label: "Password"),
-      //
-      html.div([attribute.class("flex justify-end")], [
-        html.button(
-          [
-            // buttons inside of forms submit the form by default.
-            attribute.class("text-white text-sm font-bold"),
-            attribute.class("px-4 py-2 bg-purple-600 rounded-lg"),
-            attribute.class("hover:bg-purple-800"),
-            attribute.class(
-              "focus:outline-2 focus:outline-offset-2 focus:outline-purple-800",
-            ),
-          ],
-          [html.text("Login")],
-        ),
-      ]),
-    ],
-  )
+  html.table([], [header, ..rows])
 }
 
 fn view_input(
@@ -285,28 +331,16 @@ fn view_input(
   html.div([], [
     html.label(
       [attribute.for(name), attribute.class("text-xs font-bold text-slate-600")],
-      [html.text(label), html.text(": ")],
+      [html.text(label)],
     ),
     html.input([
       attribute.type_(type_),
-      attribute.class(
-        "block mt-1 w-full px-3 py-1 border rounded-lg focus:shadow",
-      ),
-      case errors {
-        [] -> attribute.class("focus:outline focus:outline-purple-600")
-        _ -> attribute.class("outline outline-red-500")
-      },
-      // we use the `id` in the associated `for` attribute on the label.
-      attribute.id(name),
-      // the `name` attribute is used as the first element of the tuple
-      // we receive for this input.
       attribute.name(name),
+      attribute.id(name),
     ]),
-    // formal provides us with customisable error messages for every element
-    // in case its validation fails, which we can show right below the input.
-    ..list.map(errors, fn(error_message) {
-      html.p([attribute.class("mt-0.5 text-xs text-red-500")], [
-        html.text(error_message),
+    ..list.map(errors, fn(err) {
+      html.p([attribute.class("text-red-500 text-xs")], [
+        html.text(err),
       ])
     })
   ])
