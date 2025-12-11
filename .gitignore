@@ -4,3 +4,7 @@
 erl_crash.dump
 manifest.toml
 *.pdf
+
+#Added automatically by Lustre Dev Tools
+/.lustre
+/dist
