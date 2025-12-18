@@ -300,6 +300,7 @@ pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
     html.input([
       attribute.type_("file"),
       attribute.id("imported-sale"),
+      attribute.accept([".csv", "text/csv"]),
     ]),
     html.button([event.on_click(ReadFile)], [html.text("Import Sale")]),
     exportacao_sistema_atual(),
