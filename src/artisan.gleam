@@ -6,6 +6,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/pair
 import gleam/result
+import gleam/string
 import gsv
 import lustre
 import lustre/attribute
@@ -149,6 +150,18 @@ pub fn login_view(model: LoginModel) -> Element(LoginMsg) {
   ])
 }
 
+fn csv_error_message(error: gsv.Error) -> String {
+  case error {
+    gsv.UnescapedQuote(line) ->
+      "Erro no CSV: aspas não escapadas na linha " <> int.to_string(line)
+
+    gsv.MissingClosingQuote(starting_line) ->
+      "Erro no CSV: aspas abertas sem fechamento (início na linha "
+      <> int.to_string(starting_line)
+      <> ")"
+  }
+}
+
 pub type SalesIntakeModel {
   SalesIntakeModel(
     username: String,
@@ -176,6 +189,46 @@ pub fn sales_intake_init(username: String) -> SalesIntakeModel {
   )
 }
 
+pub fn parse_csv(raw: String) -> Result(String, String) {
+  case gsv.to_dicts(raw, ",") {
+    Error(err) -> Error(csv_error_message(err))
+
+    Ok(csv) -> {
+      let required_fields = ["nome", "ambiente", "quantidade"]
+
+      let validation =
+        csv
+        |> list.index_fold(Ok(Nil), fn(acc, product, index) {
+          case acc {
+            Error(_) -> acc
+
+            Ok(_) ->
+              case
+                required_fields
+                |> list.all(fn(field) { dict.has_key(product, field) })
+              {
+                True -> Ok(Nil)
+
+                False ->
+                  Error(
+                    "Linha "
+                    <> int.to_string(index + 1)
+                    <> " não contém todos os campos obrigatórios ("
+                    <> string.join(required_fields, ", ")
+                    <> ")",
+                  )
+              }
+          }
+        })
+
+      case validation {
+        Ok(_) -> Ok(raw)
+        Error(msg) -> Error(msg)
+      }
+    }
+  }
+}
+
 pub fn sales_intake_update(
   model: SalesIntakeModel,
   msg: SalesIntakeMsg,
@@ -192,25 +245,23 @@ pub fn sales_intake_update(
       }),
     )
 
-    FileRead(Ok(text)) ->
-      case gsv.to_dicts(text, ",") {
-        Ok(_) -> #(
+    FileRead(Ok(raw)) ->
+      case parse_csv(raw) {
+        Error(err) -> #(
+          SalesIntakeModel(..model, status: "Falha ao importar: " <> err),
+          effect.none(),
+        )
+        Ok(content) -> #(
           SalesIntakeModel(
             ..model,
-            products: map_products(text),
-            status: "File loaded",
+            status: "csv importado com sucesso!",
+            products: map_products(content),
           ),
           effect.none(),
         )
-
-        Error(_) -> #(
-          SalesIntakeModel(..model, status: "Invalid CSV"),
-          effect.none(),
-        )
       }
-
-    FileRead(Error(_)) -> #(
-      SalesIntakeModel(..model, status: "Failed to read file"),
+    FileRead(Error(err)) -> #(
+      SalesIntakeModel(..model, status: "Failed to read file: " <> err),
       effect.none(),
     )
     UserSubmittedSupplier(Ok(SupplierData(supplier:))) -> #(
