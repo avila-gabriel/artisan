@@ -4,6 +4,7 @@ import gleam/int
 import gleam/javascript/promise
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/pair
 import gleam/result
 import gsv
 import lustre
@@ -11,6 +12,7 @@ import lustre/attribute
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
+import lustre/element/keyed
 import lustre/event
 
 @external(javascript, "./file.ffi.mjs", "read_file_as_text")
@@ -161,10 +163,17 @@ pub type SalesIntakeMsg {
   ReadFile
   FileRead(Result(String, String))
   UserSubmittedSupplier(Result(SupplierData, Form(SupplierData)))
+  UpdateProduct(Product)
 }
 
 pub fn sales_intake_init(username: String) -> SalesIntakeModel {
-  SalesIntakeModel(username, [], "No file loaded", new_supplier_form(), None)
+  SalesIntakeModel(
+    username,
+    [Product(0, "", "", 1)],
+    "No file loaded",
+    new_supplier_form(),
+    None,
+  )
 }
 
 pub fn sales_intake_update(
@@ -213,6 +222,18 @@ pub fn sales_intake_update(
       SalesIntakeModel(..model, supplier_form: form),
       effect.none(),
     )
+    UpdateProduct(updated) -> #(
+      SalesIntakeModel(
+        ..model,
+        products: list.map(model.products, fn(p) {
+          case p.id == updated.id {
+            True -> updated
+            False -> p
+          }
+        }),
+      ),
+      effect.none(),
+    )
   }
 }
 
@@ -224,13 +245,68 @@ pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
     html.p([], [html.text("Bem-Vindo " <> username)]),
     html.p([], [html.text(status)]),
     supplier_view(supplier_form),
-    products_table(products),
+    products_view(products),
     html.input([
       attribute.type_("file"),
       attribute.id("imported-sale"),
     ]),
     html.button([event.on_click(ReadFile)], [html.text("Import Sale")]),
     exportacao_sistema_atual(),
+  ])
+}
+
+pub fn products_view(products: List(Product)) -> Element(SalesIntakeMsg) {
+  html.table([attribute.class("w-full border-collapse")], [
+    html.thead([], [
+      html.tr([], [
+        html.th([], [html.text("Nome")]),
+        html.th([], [html.text("Ambiente")]),
+        html.th([], [html.text("Quantidade")]),
+      ]),
+    ]),
+    keyed.tbody(
+      [],
+      list.map(products, fn(product) {
+        #(int.to_string(product.id), product_row(product))
+      }),
+    ),
+  ])
+}
+
+fn product_row(product: Product) -> Element(SalesIntakeMsg) {
+  let Product(id, nome, ambiente, quantidade) = product
+
+  html.tr([], [
+    html.td([], [
+      html.input([
+        attribute.type_("text"),
+        attribute.value(nome),
+        event.on_input(fn(v) {
+          UpdateProduct(Product(id, v, ambiente, quantidade))
+        }),
+      ]),
+    ]),
+    html.td([], [
+      html.input([
+        attribute.type_("text"),
+        attribute.value(ambiente),
+        event.on_input(fn(v) { UpdateProduct(Product(id, nome, v, quantidade)) }),
+      ]),
+    ]),
+    html.td([], [
+      html.input([
+        attribute.type_("number"),
+        attribute.value(int.to_string(quantidade)),
+        event.on_input(fn(v) {
+          let q =
+            v
+            |> int.parse
+            |> result.unwrap(quantidade)
+
+          UpdateProduct(Product(id, nome, ambiente, q))
+        }),
+      ]),
+    ]),
   ])
 }
 
@@ -318,7 +394,7 @@ pub fn exportacao_sistema_atual() {
 }
 
 pub type Product {
-  Product(nome: String, ambiente: String, quantidade: Int)
+  Product(id: Int, nome: String, ambiente: String, quantidade: Int)
 }
 
 pub type LoginData {
@@ -356,29 +432,22 @@ pub fn new_supplier_form() -> Form(SupplierData) {
 pub fn map_products(raw: String) -> List(Product) {
   gsv.to_dicts(raw, ",")
   |> result.unwrap([])
-  |> list.map(fn(row) {
-    Product(
-      nome: dict.get(row, "nome") |> result.unwrap(""),
-      ambiente: dict.get(row, "ambiente") |> result.unwrap(""),
-      quantidade: dict.get(row, "quantidade")
-        |> result.unwrap("0")
-        |> int.parse
-        |> result.unwrap(0),
+  |> list.map_fold(-1, fn(counter, row) {
+    let counter = counter + 1
+    #(
+      counter,
+      Product(
+        id: counter,
+        nome: dict.get(row, "nome") |> result.unwrap(""),
+        ambiente: dict.get(row, "ambiente") |> result.unwrap(""),
+        quantidade: dict.get(row, "quantidade")
+          |> result.unwrap("1")
+          |> int.parse
+          |> result.unwrap(1),
+      ),
     )
   })
-}
-
-pub fn products_table(products: List(Product)) -> Element(msg) {
-  html.table(
-    [],
-    list.map(products, fn(p) {
-      html.tr([], [
-        html.td([], [html.text(p.nome)]),
-        html.td([], [html.text(p.ambiente)]),
-        html.td([], [html.text(int.to_string(p.quantidade))]),
-      ])
-    }),
-  )
+  |> pair.second
 }
 
 pub fn view_input(
