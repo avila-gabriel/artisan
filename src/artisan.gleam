@@ -3,6 +3,7 @@ import gleam/dict
 import gleam/int
 import gleam/javascript/promise
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import gsv
 import lustre
@@ -108,11 +109,25 @@ pub fn login_init(_) -> LoginModel {
 
 pub fn login_update(_model: LoginModel, msg: LoginMsg) -> LoginUpdateResultModel {
   case msg {
-    UserSubmittedLogin(Ok(LoginData(username:, password:))) ->
+    UserSubmittedLogin(Ok(LoginData(username, _password))) ->
       LoginSuccessModel(username, SalesIntakeRole)
 
     UserSubmittedLogin(Error(form)) -> LoginStayModel(LoginModel(form))
   }
+}
+
+pub fn supplier_view(form: Form(SupplierData)) {
+  let handle_submit = fn(values) {
+    form
+    |> form.add_values(values)
+    |> form.run
+    |> UserSubmittedSupplier
+  }
+
+  html.form([event.on_submit(handle_submit)], [
+    view_input(form, is: "text", name: "fornecedor", label: "Fornecedor"),
+    html.button([], [html.text("Fornecedor")]),
+  ])
 }
 
 pub fn login_view(model: LoginModel) -> Element(LoginMsg) {
@@ -133,27 +148,32 @@ pub fn login_view(model: LoginModel) -> Element(LoginMsg) {
 }
 
 pub type SalesIntakeModel {
-  SalesIntakeModel(username: String, products: List(Product), status: String)
+  SalesIntakeModel(
+    username: String,
+    products: List(Product),
+    status: String,
+    supplier_form: Form(SupplierData),
+    supplier: Option(String),
+  )
 }
 
 pub type SalesIntakeMsg {
   ReadFile
   FileRead(Result(String, String))
+  UserSubmittedSupplier(Result(SupplierData, Form(SupplierData)))
 }
 
 pub fn sales_intake_init(username: String) -> SalesIntakeModel {
-  SalesIntakeModel(username, [], "No file loaded")
+  SalesIntakeModel(username, [], "No file loaded", new_supplier_form(), None)
 }
 
 pub fn sales_intake_update(
   model: SalesIntakeModel,
   msg: SalesIntakeMsg,
 ) -> #(SalesIntakeModel, effect.Effect(SalesIntakeMsg)) {
-  let SalesIntakeModel(username, products, _) = model
-
   case msg {
     ReadFile -> #(
-      SalesIntakeModel(username, products, "Reading file…"),
+      SalesIntakeModel(..model, status: "Reading file…"),
       effect.from(fn(dispatch) {
         let _ =
           promise.await(read_file_as_text("imported-sale"), fn(result) {
@@ -166,35 +186,135 @@ pub fn sales_intake_update(
     FileRead(Ok(text)) ->
       case gsv.to_dicts(text, ",") {
         Ok(_) -> #(
-          SalesIntakeModel(username, map_products(text), "File loaded"),
+          SalesIntakeModel(
+            ..model,
+            products: map_products(text),
+            status: "File loaded",
+          ),
           effect.none(),
         )
 
         Error(_) -> #(
-          SalesIntakeModel(username, [], "Invalid CSV"),
+          SalesIntakeModel(..model, status: "Invalid CSV"),
           effect.none(),
         )
       }
 
     FileRead(Error(_)) -> #(
-      SalesIntakeModel(username, [], "Failed to read file"),
+      SalesIntakeModel(..model, status: "Failed to read file"),
+      effect.none(),
+    )
+    UserSubmittedSupplier(Ok(SupplierData(supplier:))) -> #(
+      SalesIntakeModel(..model, supplier: Some(supplier)),
+      effect.none(),
+    )
+
+    UserSubmittedSupplier(Error(form)) -> #(
+      SalesIntakeModel(..model, supplier_form: form),
       effect.none(),
     )
   }
 }
 
 pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
-  let SalesIntakeModel(_, products, status) = model
+  let SalesIntakeModel(username, products, status, supplier_form, _supplier) =
+    model
 
   html.div([], [
+    html.p([], [html.text("Bem-Vindo " <> username)]),
     html.p([], [html.text(status)]),
+    supplier_view(supplier_form),
     products_table(products),
     html.input([
       attribute.type_("file"),
       attribute.id("imported-sale"),
     ]),
     html.button([event.on_click(ReadFile)], [html.text("Import Sale")]),
+    exportacao_sistema_atual(),
   ])
+}
+
+pub fn exportacao_sistema_atual() {
+  html.div(
+    [
+      attribute.class(
+        "max-w-3xl mx-auto bg-white border border-gray-200 rounded-xl shadow-sm p-6",
+      ),
+    ],
+    [
+      html.div(
+        [
+          attribute.class("flex items-start gap-4"),
+        ],
+        [
+          html.div(
+            [
+              attribute.class(
+                "flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold",
+              ),
+            ],
+            [html.text("1")],
+          ),
+
+          html.div([], [
+            html.h2(
+              [
+                attribute.class("text-lg font-semibold text-gray-900"),
+              ],
+              [html.text("Exportação do orçamento no sistema atual")],
+            ),
+
+            html.ol(
+              [
+                attribute.class(
+                  "mt-4 space-y-2 text-sm text-gray-700 list-decimal list-inside",
+                ),
+              ],
+              [
+                html.li([], [html.text("Acessar Lista de Orçamentos")]),
+                html.li([], [html.text("Selecionar o orçamento fechado")]),
+                html.li([], [html.text("Clicar em Enviar")]),
+                html.li([], [html.text("Salvar arquivo em Excel (XLS)")]),
+                html.li([], [html.text("Converter o arquivo para CSV")]),
+                html.li([], [html.text("Importar o CSV no novo sistema")]),
+              ],
+            ),
+
+            html.div(
+              [
+                attribute.class(
+                  "mt-4 rounded-lg bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700",
+                ),
+              ],
+              [
+                html.ul(
+                  [
+                    attribute.class("list-disc list-inside space-y-1"),
+                  ],
+                  [
+                    html.li([], [
+                      html.text("Cada arquivo representa uma venda (orçamento)"),
+                    ]),
+                    html.li([], [
+                      html.text("Uma venda contém uma lista de produtos"),
+                    ]),
+                    html.li([], [
+                      html.text("Produtos incluem quantidade e ambiente"),
+                    ]),
+                    html.li([], [
+                      html.text(
+                        "O fornecedor não vem no arquivo e será informado depois",
+                      ),
+                    ]),
+                  ],
+                ),
+              ],
+            ),
+          ]),
+        ],
+      ),
+    ],
+  )
 }
 
 pub type Product {
@@ -219,6 +339,17 @@ pub fn new_login_form() -> Form(LoginData) {
     use username <- form.field("username", form.parse_string)
     use password <- form.field("password", form.parse_string)
     form.success(LoginData(username:, password:))
+  })
+}
+
+pub type SupplierData {
+  SupplierData(supplier: String)
+}
+
+pub fn new_supplier_form() -> Form(SupplierData) {
+  form.new({
+    use supplier <- form.field("supplier", form.parse_string)
+    form.success(SupplierData(supplier:))
   })
 }
 
