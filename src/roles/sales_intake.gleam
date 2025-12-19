@@ -1,7 +1,11 @@
 import formal/form.{type Form}
 import gleam/dict
+import gleam/dynamic/decode
+import gleam/http
+import gleam/http/request
 import gleam/int
 import gleam/javascript/promise
+import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/pair
@@ -14,6 +18,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import lustre/element/keyed
 import lustre/event
+import rsvp
 import shared.{view_input}
 
 @external(javascript, "../file.ffi.mjs", "read_file_as_text")
@@ -30,11 +35,11 @@ pub fn supplier_view(form: Form(SupplierData), supplier: Option(String)) {
   }
 
   html.form([event.on_submit(handle_submit)], [
-    view_input(form, is: "text", name: "fornecedor", label: "Fornecedor"),
+    view_input(form, is: "text", name: "supplier", label: "Fornecedor"),
     html.button([], [html.text("Fornecedor")]),
     html.span([], [
       html.text(case supplier {
-        Some(supplier) -> supplier
+        Some(supplier) -> echo supplier
         None -> "Nenhum fornecedor fornecido"
       }),
     ]),
@@ -58,6 +63,7 @@ pub type SalesIntakeModel {
     username: String,
     products: List(Product),
     status: String,
+    errors: List(String),
     supplier_form: Form(SupplierData),
     supplier: Option(String),
   )
@@ -68,13 +74,18 @@ pub type SalesIntakeMsg {
   FileRead(Result(String, String))
   UserSubmittedSupplier(Result(SupplierData, Form(SupplierData)))
   UpdateProduct(Product)
+  SubmitSalesIntake
+  ApiSubmittedSale(Result(Int, rsvp.Error))
+
+  ResetSalesIntake
 }
 
 pub fn sales_intake_init(username: String) -> SalesIntakeModel {
   SalesIntakeModel(
     username,
     [Product(0, "", "", 1)],
-    "No file loaded",
+    "",
+    [],
     new_supplier_form(),
     None,
   )
@@ -176,16 +187,141 @@ pub fn sales_intake_update(
       ),
       effect.none(),
     )
+    ResetSalesIntake -> #(sales_intake_init(model.username), effect.none())
+    SubmitSalesIntake ->
+      case validate_submission(model) {
+        Error(errors) -> #(
+          SalesIntakeModel(..model, status: "", errors: errors),
+          effect.none(),
+        )
+
+        Ok(valid_model) -> #(
+          SalesIntakeModel(..valid_model, status: "Enviando venda…", errors: []),
+          submit_sale(model: valid_model, on_response: ApiSubmittedSale),
+        )
+      }
+
+    ApiSubmittedSale(Ok(id)) -> #(
+      SalesIntakeModel(
+        ..model,
+        status: "Venda registrada com sucesso (id " <> int.to_string(id) <> ")",
+        errors: [],
+      ),
+      effect.none(),
+    )
+
+    ApiSubmittedSale(Error(_)) -> #(
+      SalesIntakeModel(..model, status: "Erro ao registrar venda", errors: []),
+      effect.none(),
+    )
+  }
+}
+
+fn submit_sale(
+  model model: SalesIntakeModel,
+  on_response handle_response: fn(Result(Int, rsvp.Error)) -> msg,
+) -> effect.Effect(msg) {
+  let assert SalesIntakeModel(username, products, _, _, _, Some(supplier)) =
+    model
+
+  let url = "https://api.example.com/sales-intake"
+
+  let body =
+    json.object([
+      #("username", json.string(username)),
+      #("supplier", json.string(supplier)),
+      #(
+        "products",
+        json.array(from: products, of: fn(product) {
+          let Product(_, nome, ambiente, quantidade) = product
+
+          json.object([
+            #("nome", json.string(nome)),
+            #("ambiente", json.string(ambiente)),
+            #("quantidade", json.int(quantidade)),
+          ])
+        }),
+      ),
+    ])
+
+  let handler = rsvp.expect_json(decode.success(0), handle_response)
+
+  case request.to(url) {
+    Ok(request) ->
+      request
+      |> request.set_method(http.Post)
+      |> request.set_body(json.to_string(body))
+      |> rsvp.send(handler)
+
+    Error(_) -> panic as { "Failed to create request to " <> url }
+  }
+}
+
+fn validate_product(product: Product, index: Int) -> List(String) {
+  let Product(_, nome, ambiente, quantidade) = product
+  let row = "Produto " <> int.to_string(index + 1)
+
+  let nome_errors = case string.trim(nome) == "" {
+    True -> [row <> ": nome não pode ser vazio"]
+    False -> []
+  }
+
+  let ambiente_errors = case string.trim(ambiente) == "" {
+    True -> [row <> ": ambiente não pode ser vazio"]
+    False -> []
+  }
+
+  let quantidade_errors = case quantidade < 1 {
+    True -> [row <> ": quantidade deve ser ≥ 1"]
+    False -> []
+  }
+  list.append(nome_errors, ambiente_errors) |> list.append(quantidade_errors)
+}
+
+fn validate_submission(
+  model: SalesIntakeModel,
+) -> Result(SalesIntakeModel, List(String)) {
+  let SalesIntakeModel(_, products, _, _, _, supplier) = model
+
+  let supplier_errors = case supplier {
+    None -> ["Fornecedor é obrigatório"]
+    Some(_) -> []
+  }
+
+  let product_errors = case products {
+    [] -> ["Não é possível registrar venda sem produtos"]
+
+    _ ->
+      products
+      |> list.index_map(validate_product)
+      |> list.flatten
+  }
+
+  let errors = list.append(supplier_errors, product_errors)
+
+  case errors {
+    [] -> Ok(model)
+    _ -> Error(errors)
   }
 }
 
 pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
-  let SalesIntakeModel(username, products, status, supplier_form, supplier) =
-    model
+  let SalesIntakeModel(
+    username,
+    products,
+    status,
+    errors,
+    supplier_form,
+    supplier,
+  ) = model
 
   html.div([], [
     html.p([], [html.text("Bem-Vindo " <> username)]),
     html.p([], [html.text(status)]),
+    html.ul(
+      [attribute.class("text-red-600 list-disc list-inside")],
+      list.map(errors, fn(err) { html.li([], [html.text(err)]) }),
+    ),
     supplier_view(supplier_form, supplier),
     products_view(products),
     html.input([
@@ -195,6 +331,23 @@ pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
     ]),
     html.button([event.on_click(ReadFile)], [html.text("Import Sale")]),
     exportacao_sistema_atual(),
+    html.div([attribute.class("flex gap-4 mt-6")], [
+      html.button(
+        [
+          attribute.class("px-4 py-2 bg-green-600 text-white rounded"),
+          event.on_click(SubmitSalesIntake),
+        ],
+        [html.text("Registrar Venda")],
+      ),
+
+      html.button(
+        [
+          attribute.class("px-4 py-2 bg-gray-300 text-gray-800 rounded"),
+          event.on_click(ResetSalesIntake),
+        ],
+        [html.text("Resetar")],
+      ),
+    ]),
   ])
 }
 
@@ -346,7 +499,10 @@ pub type SupplierData {
 
 pub fn new_supplier_form() -> Form(SupplierData) {
   form.new({
-    use supplier <- form.field("supplier", form.parse_string)
+    use supplier <- form.field(
+      "supplier",
+      form.parse_string |> form.check_not_empty,
+    )
     form.success(SupplierData(supplier:))
   })
 }
