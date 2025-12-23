@@ -19,7 +19,7 @@ import lustre/element/html
 import lustre/element/keyed
 import lustre/event
 import rsvp
-import shared.{view_input}
+import shared.{type Product, Product, validate_products, view_input}
 
 @external(javascript, "../file.ffi.mjs", "read_file_as_text")
 pub fn read_file_as_text(
@@ -39,7 +39,7 @@ pub fn supplier_view(form: Form(SupplierData), supplier: Option(String)) {
     html.button([], [html.text("Fornecedor")]),
     html.span([], [
       html.text(case supplier {
-        Some(supplier) -> echo supplier
+        Some(supplier) -> supplier
         None -> "Nenhum fornecedor fornecido"
       }),
     ]),
@@ -76,7 +76,8 @@ pub type SalesIntakeMsg {
   UpdateProduct(Product)
   SubmitSalesIntake
   ApiSubmittedSale(Result(Int, rsvp.Error))
-
+  AddProduct
+  RemoveProduct(Int)
   ResetSalesIntake
 }
 
@@ -211,7 +212,11 @@ pub fn sales_intake_update(
     )
 
     ApiSubmittedSale(Error(_)) -> #(
-      SalesIntakeModel(..model, status: "Erro ao registrar venda", errors: []),
+      SalesIntakeModel(
+        ..model,
+        status: "Erro ao registrar venda por parte do servidor",
+        errors: [],
+      ),
       effect.none(),
     )
   }
@@ -223,8 +228,6 @@ fn submit_sale(
 ) -> effect.Effect(msg) {
   let assert SalesIntakeModel(username, products, _, _, _, Some(supplier)) =
     model
-
-  let url = "https://api.example.com/sales-intake"
 
   let body =
     json.object([
@@ -245,37 +248,14 @@ fn submit_sale(
     ])
 
   let handler = rsvp.expect_json(decode.success(0), handle_response)
+  let endpoint = "sales_intake"
+  let assert Ok(request) = request.to(shared.url <> endpoint)
+    as { "Failed to create request to " <> shared.url <> endpoint }
 
-  case request.to(url) {
-    Ok(request) ->
-      request
-      |> request.set_method(http.Post)
-      |> request.set_body(json.to_string(body))
-      |> rsvp.send(handler)
-
-    Error(_) -> panic as { "Failed to create request to " <> url }
-  }
-}
-
-fn validate_product(product: Product, index: Int) -> List(String) {
-  let Product(_, nome, ambiente, quantidade) = product
-  let row = "Produto " <> int.to_string(index + 1)
-
-  let nome_errors = case string.trim(nome) == "" {
-    True -> [row <> ": nome não pode ser vazio"]
-    False -> []
-  }
-
-  let ambiente_errors = case string.trim(ambiente) == "" {
-    True -> [row <> ": ambiente não pode ser vazio"]
-    False -> []
-  }
-
-  let quantidade_errors = case quantidade < 1 {
-    True -> [row <> ": quantidade deve ser ≥ 1"]
-    False -> []
-  }
-  list.append(nome_errors, ambiente_errors) |> list.append(quantidade_errors)
+  request
+  |> request.set_method(http.Post)
+  |> request.set_body(json.to_string(body))
+  |> rsvp.send(handler)
 }
 
 fn validate_submission(
@@ -288,16 +268,19 @@ fn validate_submission(
     Some(_) -> []
   }
 
-  let product_errors = case products {
+  let product_presence_errors = case products {
     [] -> ["Não é possível registrar venda sem produtos"]
-
-    _ ->
-      products
-      |> list.index_map(validate_product)
-      |> list.flatten
+    _ -> []
   }
 
-  let errors = list.append(supplier_errors, product_errors)
+  let domain_errors = case products {
+    [] -> []
+    _ -> validate_products(products)
+  }
+
+  let errors =
+    list.append(supplier_errors, product_presence_errors)
+    |> list.append(domain_errors)
 
   case errors {
     [] -> Ok(model)
@@ -487,10 +470,6 @@ pub fn exportacao_sistema_atual() {
       ),
     ],
   )
-}
-
-pub type Product {
-  Product(id: Int, nome: String, ambiente: String, quantidade: Int)
 }
 
 pub type SupplierData {
