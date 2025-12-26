@@ -201,6 +201,25 @@ pub fn sales_intake_update(
           submit_sale(model: valid_model, on_response: ApiSubmittedSale),
         )
       }
+    AddProduct -> {
+      let id = next_product_id(model.products)
+
+      #(
+        SalesIntakeModel(
+          ..model,
+          products: list.append(model.products, [Product(id, "", "", 1)]),
+        ),
+        effect.none(),
+      )
+    }
+
+    RemoveProduct(id) -> #(
+      SalesIntakeModel(
+        ..model,
+        products: list.filter(model.products, fn(p) { p.id != id }),
+      ),
+      effect.none(),
+    )
 
     ApiSubmittedSale(Ok(id)) -> #(
       SalesIntakeModel(
@@ -335,20 +354,33 @@ pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
 }
 
 pub fn products_view(products: List(Product)) -> Element(SalesIntakeMsg) {
-  html.table([attribute.class("w-full border-collapse")], [
-    html.thead([], [
-      html.tr([], [
-        html.th([], [html.text("Nome")]),
-        html.th([], [html.text("Ambiente")]),
-        html.th([], [html.text("Quantidade")]),
+  html.div([], [
+    html.table([attribute.class("w-full border-collapse")], [
+      html.thead([], [
+        html.tr([], [
+          html.th([], [html.text("Nome")]),
+          html.th([], [html.text("Ambiente")]),
+          html.th([], [html.text("Quantidade")]),
+          html.th([], []),
+        ]),
       ]),
+      keyed.tbody(
+        [],
+        list.map(products, fn(product) {
+          #(int.to_string(product.id), product_row(product))
+        }),
+      ),
     ]),
-    keyed.tbody(
-      [],
-      list.map(products, fn(product) {
-        #(int.to_string(product.id), product_row(product))
-      }),
-    ),
+
+    html.div([attribute.class("mt-2")], [
+      html.button(
+        [
+          attribute.class("px-3 py-1 bg-blue-600 text-white rounded"),
+          event.on_click(AddProduct),
+        ],
+        [html.text("+ Adicionar produto")],
+      ),
+    ]),
   ])
 }
 
@@ -385,6 +417,15 @@ fn product_row(product: Product) -> Element(SalesIntakeMsg) {
           UpdateProduct(Product(id, nome, ambiente, q))
         }),
       ]),
+    ]),
+    html.td([], [
+      html.button(
+        [
+          attribute.class("text-red-600"),
+          event.on_click(RemoveProduct(id)),
+        ],
+        [html.text("✕")],
+      ),
     ]),
   ])
 }
@@ -505,4 +546,12 @@ pub fn map_products(raw: String) -> List(Product) {
     )
   })
   |> pair.second
+}
+
+fn next_product_id(products: List(Product)) -> Int {
+  products
+  |> list.map(fn(p) { p.id })
+  |> list.max(int.compare)
+  |> result.unwrap(-1)
+  |> fn(id) { id + 1 }
 }
