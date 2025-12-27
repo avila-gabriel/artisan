@@ -13,6 +13,7 @@ version = "1.0.0"
 # https://gleam.run/writing-gleam/gleam-toml/.
 
 [dependencies]
+artisan = { path = "../" }
 gleam_stdlib = ">= 0.44.0 and < 2.0.0"
 wisp = ">= 2.1.1 and < 3.0.0"
 lifeguard = ">= 4.0.0 and < 5.0.0"
