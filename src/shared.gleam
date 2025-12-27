@@ -1,6 +1,6 @@
 import formal/form.{type Form}
-import gleam/int
 import gleam/list
+import gleam/option
 import gleam/string
 import lustre/attribute
 import lustre/element.{type Element}
@@ -40,25 +40,24 @@ pub fn view_input(
 }
 
 pub type Product {
-  Product(id: Int, nome: String, ambiente: String, quantidade: Int)
+  Product(nome: String, ambiente: String, quantidade: Int)
 }
 
-pub fn validate_product(product: Product, index: Int) -> List(String) {
-  let Product(_, nome, ambiente, quantidade) = product
-  let row = "Produto " <> int.to_string(index + 1)
+pub fn validate_product(product: Product) -> List(String) {
+  let Product(nome, ambiente, quantidade) = product
 
   let nome_errors = case string.trim(nome) == "" {
-    True -> [row <> ": nome não pode ser vazio"]
+    True -> ["Nome do produto não pode ser vazio"]
     False -> []
   }
 
   let ambiente_errors = case string.trim(ambiente) == "" {
-    True -> [row <> ": ambiente não pode ser vazio"]
+    True -> ["Ambiente não pode ser vazio"]
     False -> []
   }
 
   let quantidade_errors = case quantidade < 1 {
-    True -> [row <> ": quantidade deve ser maior que zero"]
+    True -> ["Quantidade deve ser maior que zero"]
     False -> []
   }
 
@@ -66,8 +65,13 @@ pub fn validate_product(product: Product, index: Int) -> List(String) {
   |> list.append(quantidade_errors)
 }
 
-pub fn validate_products(products: List(Product)) -> List(String) {
-  products
-  |> list.index_map(validate_product)
-  |> list.flatten
+pub fn validate_products(products: List(Product)) -> option.Option(List(String)) {
+  case
+    products
+    |> list.map(validate_product)
+    |> list.flatten
+  {
+    [] -> option.None
+    errors -> option.Some(errors)
+  }
 }

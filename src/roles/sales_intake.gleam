@@ -24,6 +24,14 @@ pub fn read_file_as_text(
   input_id: String,
 ) -> promise.Promise(Result(String, String))
 
+pub type UiProduct {
+  UiProduct(key: String, product: Product)
+}
+
+pub type SupplierData {
+  SupplierData(supplier: String)
+}
+
 pub fn supplier_view(form: Form(SupplierData), supplier: Option(String)) {
   let handle_submit = fn(values) {
     form
@@ -59,7 +67,7 @@ fn csv_error_message(error: gsv.Error) -> String {
 pub type SalesIntakeModel {
   SalesIntakeModel(
     username: String,
-    products: List(Product),
+    products: List(UiProduct),
     status: String,
     errors: List(String),
     supplier_form: Form(SupplierData),
@@ -71,18 +79,18 @@ pub type SalesIntakeMsg {
   ReadFile
   FileRead(Result(String, String))
   UserSubmittedSupplier(Result(SupplierData, Form(SupplierData)))
-  UpdateProduct(Product)
+  UpdateProduct(String, Product)
   SubmitSalesIntake
   ApiSubmittedSale(Result(response.Response(String), rsvp.Error))
   AddProduct
-  RemoveProduct(Int)
+  RemoveProduct(String)
   ResetSalesIntake
 }
 
 pub fn sales_intake_init(username: String) -> SalesIntakeModel {
   SalesIntakeModel(
     username,
-    [Product(0, "", "", 1)],
+    [UiProduct("0", Product("", "", 1))],
     "",
     [],
     new_supplier_form(),
@@ -93,23 +101,20 @@ pub fn sales_intake_init(username: String) -> SalesIntakeModel {
 pub fn parse_csv(raw: String) -> Result(String, String) {
   case gsv.to_dicts(raw, ",") {
     Error(err) -> Error(csv_error_message(err))
-
     Ok(csv) -> {
       let required_fields = ["nome", "ambiente", "quantidade"]
 
       let validation =
         csv
-        |> list.index_fold(Ok(Nil), fn(acc, product, index) {
+        |> list.index_fold(Ok(Nil), fn(acc, row, index) {
           case acc {
             Error(_) -> acc
-
             Ok(_) ->
               case
                 required_fields
-                |> list.all(fn(field) { dict.has_key(product, field) })
+                |> list.all(fn(field) { dict.has_key(row, field) })
               {
                 True -> Ok(Nil)
-
                 False ->
                   Error(
                     "Linha "
@@ -152,19 +157,21 @@ pub fn sales_intake_update(
           SalesIntakeModel(..model, status: "Falha ao importar: " <> err),
           effect.none(),
         )
-        Ok(content) -> #(
+        Ok(_) -> #(
           SalesIntakeModel(
             ..model,
             status: "csv importado com sucesso!",
-            products: map_products(content),
+            products: map_products(raw),
           ),
           effect.none(),
         )
       }
+
     FileRead(Error(err)) -> #(
       SalesIntakeModel(..model, status: "Failed to read file: " <> err),
       effect.none(),
     )
+
     UserSubmittedSupplier(Ok(SupplierData(supplier:))) -> #(
       SalesIntakeModel(..model, supplier: Some(supplier)),
       effect.none(),
@@ -174,19 +181,22 @@ pub fn sales_intake_update(
       SalesIntakeModel(..model, supplier_form: form),
       effect.none(),
     )
-    UpdateProduct(updated) -> #(
+
+    UpdateProduct(key, updated) -> #(
       SalesIntakeModel(
         ..model,
-        products: list.map(model.products, fn(p) {
-          case p.id == updated.id {
-            True -> updated
-            False -> p
+        products: list.map(model.products, fn(ui) {
+          case ui.key == key {
+            True -> UiProduct(key, updated)
+            False -> ui
           }
         }),
       ),
       effect.none(),
     )
+
     ResetSalesIntake -> #(sales_intake_init(model.username), effect.none())
+
     SubmitSalesIntake ->
       case validate_submission(model) {
         Error(errors) -> #(
@@ -194,27 +204,30 @@ pub fn sales_intake_update(
           effect.none(),
         )
 
-        Ok(valid_model) -> #(
-          SalesIntakeModel(..valid_model, status: "Enviando venda…", errors: []),
-          submit_sale(model: valid_model),
+        Ok(domain_products) -> #(
+          SalesIntakeModel(..model, status: "Enviando venda…", errors: []),
+          submit_sale(model.username, domain_products, model.supplier),
         )
       }
+
     AddProduct -> {
-      let id = next_product_id(model.products)
+      let key = int.to_string(list.length(model.products))
 
       #(
         SalesIntakeModel(
           ..model,
-          products: list.append(model.products, [Product(id, "", "", 1)]),
+          products: list.append(model.products, [
+            UiProduct(key, Product("", "", 1)),
+          ]),
         ),
         effect.none(),
       )
     }
 
-    RemoveProduct(id) -> #(
+    RemoveProduct(key) -> #(
       SalesIntakeModel(
         ..model,
-        products: list.filter(model.products, fn(p) { p.id != id }),
+        products: list.filter(model.products, fn(p) { p.key != key }),
       ),
       effect.none(),
     )
@@ -239,9 +252,12 @@ pub fn sales_intake_update(
   }
 }
 
-fn submit_sale(model model: SalesIntakeModel) -> effect.Effect(SalesIntakeMsg) {
-  let assert SalesIntakeModel(username, products, _, _, _, Some(supplier)) =
-    model
+fn submit_sale(
+  username: String,
+  products: List(Product),
+  supplier: Option(String),
+) -> effect.Effect(SalesIntakeMsg) {
+  let assert Some(supplier) = supplier
 
   let body =
     json.object([
@@ -250,8 +266,7 @@ fn submit_sale(model model: SalesIntakeModel) -> effect.Effect(SalesIntakeMsg) {
       #(
         "products",
         json.array(from: products, of: fn(product) {
-          let Product(_, nome, ambiente, quantidade) = product
-
+          let Product(nome, ambiente, quantidade) = product
           json.object([
             #("nome", json.string(nome)),
             #("ambiente", json.string(ambiente)),
@@ -267,30 +282,31 @@ fn submit_sale(model model: SalesIntakeModel) -> effect.Effect(SalesIntakeMsg) {
 
 fn validate_submission(
   model: SalesIntakeModel,
-) -> Result(SalesIntakeModel, List(String)) {
-  let SalesIntakeModel(_, products, _, _, _, supplier) = model
+) -> Result(List(Product), List(String)) {
+  let domain_products =
+    model.products
+    |> list.map(fn(ui) { ui.product })
 
-  let supplier_errors = case supplier {
+  let supplier_errors = case model.supplier {
     None -> ["Fornecedor é obrigatório"]
     Some(_) -> []
   }
 
-  let product_presence_errors = case products {
+  let product_presence_errors = case domain_products {
     [] -> ["Não é possível registrar venda sem produtos"]
     _ -> []
   }
 
-  let domain_errors = case products {
-    [] -> []
-    _ -> validate_products(products)
-  }
+  let domain_errors =
+    validate_products(domain_products)
+    |> option.unwrap([])
 
   let errors =
     list.append(supplier_errors, product_presence_errors)
     |> list.append(domain_errors)
 
   case errors {
-    [] -> Ok(model)
+    [] -> Ok(domain_products)
     _ -> Error(errors)
   }
 }
@@ -329,7 +345,6 @@ pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
         ],
         [html.text("Registrar Venda")],
       ),
-
       html.button(
         [
           attribute.class("px-4 py-2 bg-gray-300 text-gray-800 rounded"),
@@ -341,7 +356,7 @@ pub fn sales_intake_view(model: SalesIntakeModel) -> Element(SalesIntakeMsg) {
   ])
 }
 
-pub fn products_view(products: List(Product)) -> Element(SalesIntakeMsg) {
+pub fn products_view(products: List(UiProduct)) -> Element(SalesIntakeMsg) {
   html.div([], [
     html.table([attribute.class("w-full border-collapse")], [
       html.thead([], [
@@ -352,14 +367,8 @@ pub fn products_view(products: List(Product)) -> Element(SalesIntakeMsg) {
           html.th([], []),
         ]),
       ]),
-      keyed.tbody(
-        [],
-        list.map(products, fn(product) {
-          #(int.to_string(product.id), product_row(product))
-        }),
-      ),
+      keyed.tbody([], list.map(products, fn(ui) { #(ui.key, product_row(ui)) })),
     ]),
-
     html.div([attribute.class("mt-2")], [
       html.button(
         [
@@ -372,8 +381,8 @@ pub fn products_view(products: List(Product)) -> Element(SalesIntakeMsg) {
   ])
 }
 
-fn product_row(product: Product) -> Element(SalesIntakeMsg) {
-  let Product(id, nome, ambiente, quantidade) = product
+fn product_row(ui: UiProduct) -> Element(SalesIntakeMsg) {
+  let UiProduct(key, Product(nome, ambiente, quantidade)) = ui
 
   html.tr([], [
     html.td([], [
@@ -381,7 +390,7 @@ fn product_row(product: Product) -> Element(SalesIntakeMsg) {
         attribute.type_("text"),
         attribute.value(nome),
         event.on_input(fn(v) {
-          UpdateProduct(Product(id, v, ambiente, quantidade))
+          UpdateProduct(key, Product(v, ambiente, quantidade))
         }),
       ]),
     ]),
@@ -389,7 +398,9 @@ fn product_row(product: Product) -> Element(SalesIntakeMsg) {
       html.input([
         attribute.type_("text"),
         attribute.value(ambiente),
-        event.on_input(fn(v) { UpdateProduct(Product(id, nome, v, quantidade)) }),
+        event.on_input(fn(v) {
+          UpdateProduct(key, Product(nome, v, quantidade))
+        }),
       ]),
     ]),
     html.td([], [
@@ -402,7 +413,7 @@ fn product_row(product: Product) -> Element(SalesIntakeMsg) {
             |> int.parse
             |> result.unwrap(quantidade)
 
-          UpdateProduct(Product(id, nome, ambiente, q))
+          UpdateProduct(key, Product(nome, ambiente, q))
         }),
       ]),
     ]),
@@ -410,7 +421,7 @@ fn product_row(product: Product) -> Element(SalesIntakeMsg) {
       html.button(
         [
           attribute.class("text-red-600"),
-          event.on_click(RemoveProduct(id)),
+          event.on_click(RemoveProduct(key)),
         ],
         [html.text("✕")],
       ),
@@ -439,15 +450,10 @@ pub fn exportacao_sistema_atual() {
             ],
             [html.text("1")],
           ),
-
           html.div([], [
-            html.h2(
-              [
-                attribute.class("text-lg font-semibold text-gray-900"),
-              ],
-              [html.text("Exportação do orçamento no sistema atual")],
-            ),
-
+            html.h2([attribute.class("text-lg font-semibold text-gray-900")], [
+              html.text("Exportação do orçamento no sistema atual"),
+            ]),
             html.ol(
               [
                 attribute.class(
@@ -463,46 +469,11 @@ pub fn exportacao_sistema_atual() {
                 html.li([], [html.text("Importar o CSV no novo sistema")]),
               ],
             ),
-
-            html.div(
-              [
-                attribute.class(
-                  "mt-4 rounded-lg bg-gray-50 border border-gray-200 p-4 text-sm text-gray-700",
-                ),
-              ],
-              [
-                html.ul(
-                  [
-                    attribute.class("list-disc list-inside space-y-1"),
-                  ],
-                  [
-                    html.li([], [
-                      html.text("Cada arquivo representa uma venda (orçamento)"),
-                    ]),
-                    html.li([], [
-                      html.text("Uma venda contém uma lista de produtos"),
-                    ]),
-                    html.li([], [
-                      html.text("Produtos incluem quantidade e ambiente"),
-                    ]),
-                    html.li([], [
-                      html.text(
-                        "O fornecedor não vem no arquivo e será informado depois",
-                      ),
-                    ]),
-                  ],
-                ),
-              ],
-            ),
           ]),
         ],
       ),
     ],
   )
-}
-
-pub type SupplierData {
-  SupplierData(supplier: String)
 }
 
 pub fn new_supplier_form() -> Form(SupplierData) {
@@ -515,31 +486,26 @@ pub fn new_supplier_form() -> Form(SupplierData) {
   })
 }
 
-pub fn map_products(raw: String) -> List(Product) {
+pub fn map_products(raw: String) -> List(UiProduct) {
   gsv.to_dicts(raw, ",")
   |> result.unwrap([])
-  |> list.map_fold(-1, fn(counter, row) {
-    let counter = counter + 1
+  |> list.map_fold(0, fn(counter, row) {
+    let key = int.to_string(counter)
+
     #(
-      counter,
-      Product(
-        id: counter,
-        nome: dict.get(row, "nome") |> result.unwrap(""),
-        ambiente: dict.get(row, "ambiente") |> result.unwrap(""),
-        quantidade: dict.get(row, "quantidade")
-          |> result.unwrap("1")
-          |> int.parse
-          |> result.unwrap(1),
+      counter + 1,
+      UiProduct(
+        key,
+        Product(
+          dict.get(row, "nome") |> result.unwrap(""),
+          dict.get(row, "ambiente") |> result.unwrap(""),
+          dict.get(row, "quantidade")
+            |> result.unwrap("1")
+            |> int.parse
+            |> result.unwrap(1),
+        ),
       ),
     )
   })
   |> pair.second
-}
-
-fn next_product_id(products: List(Product)) -> Int {
-  products
-  |> list.map(fn(p) { p.id })
-  |> list.max(int.compare)
-  |> result.unwrap(-1)
-  |> fn(id) { id + 1 }
 }
