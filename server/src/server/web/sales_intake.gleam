@@ -23,6 +23,7 @@ pub type RegisterInput {
 fn register_decoder() -> decode.Decoder(RegisterInput) {
   use username <- decode.field("username", decode.string)
   use supplier <- decode.field("supplier", decode.string)
+
   use products <- decode.field(
     "products",
     decode.list({
@@ -32,6 +33,7 @@ fn register_decoder() -> decode.Decoder(RegisterInput) {
       decode.success(ProductInput(nome:, ambiente:, quantidade:))
     }),
   )
+
   decode.success(RegisterInput(username:, supplier:, products:))
 }
 
@@ -93,11 +95,20 @@ pub fn register(req: Request, ctx: Context) -> Response {
             Error(e) -> Error(e)
 
             Ok(rows) -> {
-              let assert [sql.CreateSalesIntake(id:)] = rows
+              case rows {
+                [sql.CreateSalesIntake(id:), ..] -> {
+                  case insert_products(conn, id, products) {
+                    Ok(_) -> Ok(id)
+                    Error(e) -> Error(e)
+                  }
+                }
 
-              case insert_products(conn, id, products) {
-                Ok(_) -> Ok(id)
-                Error(e) -> Error(e)
+                _ ->
+                  Error(sqlight.SqlightError(
+                    code: sqlight.GenericError,
+                    message: "Expected CreateSalesIntake to return one row with id",
+                    offset: -1,
+                  ))
               }
             }
           }
