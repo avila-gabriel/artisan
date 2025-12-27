@@ -1,3 +1,4 @@
+import common.{type Product, Product}
 import gleam/dynamic/decode
 import gleam/json
 import gleam/list
@@ -6,7 +7,6 @@ import gleam/time/timestamp
 import server/db
 import server/sql
 import server/web.{type Context}
-import shared.{type Product, Product}
 import sqlight
 import wisp.{type Request, type Response}
 
@@ -69,7 +69,7 @@ pub fn register(req: Request, ctx: Context) -> Response {
     Error(_) -> wisp.unprocessable_content()
 
     Ok(RegisterInput(username, supplier, products)) -> {
-      case shared.validate_products(products) {
+      case common.validate_products(products) {
         option.Some(_) -> wisp.unprocessable_content()
 
         option.None -> {
