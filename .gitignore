@@ -4,6 +4,9 @@
 erl_crash.dump
 manifest.toml
 *.pdf
+*.log
+*/priv
+*/data
 
 #Added automatically by Lustre Dev Tools
 /.lustre
