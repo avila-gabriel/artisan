@@ -6,10 +6,6 @@ import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 
-pub const url = "http://localhost:8000/"
-
-//"https://api.avilaville.site/"
-
 pub type Role {
   SalesIntakeRole
   PurchaseRole

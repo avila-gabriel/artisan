@@ -1,8 +1,6 @@
 import formal/form.{type Form}
 import gleam/dict
-import gleam/dynamic/decode
-import gleam/http
-import gleam/http/request
+import gleam/http/response
 import gleam/int
 import gleam/javascript/promise
 import gleam/json
@@ -75,7 +73,7 @@ pub type SalesIntakeMsg {
   UserSubmittedSupplier(Result(SupplierData, Form(SupplierData)))
   UpdateProduct(Product)
   SubmitSalesIntake
-  ApiSubmittedSale(Result(Int, rsvp.Error))
+  ApiSubmittedSale(Result(response.Response(String), rsvp.Error))
   AddProduct
   RemoveProduct(Int)
   ResetSalesIntake
@@ -198,7 +196,7 @@ pub fn sales_intake_update(
 
         Ok(valid_model) -> #(
           SalesIntakeModel(..valid_model, status: "Enviando venda…", errors: []),
-          submit_sale(model: valid_model, on_response: ApiSubmittedSale),
+          submit_sale(model: valid_model),
         )
       }
     AddProduct -> {
@@ -221,10 +219,10 @@ pub fn sales_intake_update(
       effect.none(),
     )
 
-    ApiSubmittedSale(Ok(id)) -> #(
+    ApiSubmittedSale(Ok(_)) -> #(
       SalesIntakeModel(
         ..model,
-        status: "Venda registrada com sucesso (id " <> int.to_string(id) <> ")",
+        status: "Venda registrada com sucesso",
         errors: [],
       ),
       effect.none(),
@@ -241,10 +239,7 @@ pub fn sales_intake_update(
   }
 }
 
-fn submit_sale(
-  model model: SalesIntakeModel,
-  on_response handle_response: fn(Result(Int, rsvp.Error)) -> msg,
-) -> effect.Effect(msg) {
+fn submit_sale(model model: SalesIntakeModel) -> effect.Effect(SalesIntakeMsg) {
   let assert SalesIntakeModel(username, products, _, _, _, Some(supplier)) =
     model
 
@@ -266,15 +261,8 @@ fn submit_sale(
       ),
     ])
 
-  let handler = rsvp.expect_json(decode.success(0), handle_response)
-  let endpoint = "sales_intake"
-  let assert Ok(request) = request.to(shared.url <> endpoint)
-    as { "Failed to create request to " <> shared.url <> endpoint }
-
-  request
-  |> request.set_method(http.Post)
-  |> request.set_body(json.to_string(body))
-  |> rsvp.send(handler)
+  let handler = rsvp.expect_ok_response(ApiSubmittedSale)
+  rsvp.post("/sales_intake", body, handler)
 }
 
 fn validate_submission(

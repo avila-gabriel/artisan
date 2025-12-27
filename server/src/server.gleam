@@ -13,7 +13,9 @@ pub fn main() {
   let secret_key_base = wisp.random_string(64)
   migration.run()
   let assert Ok(pool) = db.start(config.db_file) as "Lifeguard start error"
-  let context = web.Context(db: pool)
+  let assert Ok(priv_directory) = wisp.priv_directory("server")
+  let static_directory = priv_directory <> "/static"
+  let context = web.Context(db: pool, static_directory:)
   let handler = router.handle_request(_, context)
   let assert Ok(_) =
     handler
