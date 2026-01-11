@@ -85,7 +85,7 @@ build-client:
 
 	# we are currently in client/ because gleam_build does cd client
 	mkdir -p ../server/priv/static
-	$(GLEAM_BIN) run -m lustre/dev build --minify --outdir=../server/priv/static
+	$(GLEAM_BIN) run -m lustre/dev build --minify sales_intake --outdir=../server/priv/static
 
 build-server:
 	set +u

@@ -1,5 +1,5 @@
 import gleam/list
-import gleam/option
+import gleam/option.{type Option, Some}
 import gleam/string
 
 pub type Role {
@@ -9,6 +9,29 @@ pub type Role {
   DeliveryRole
   SalesPersonRole
   ManagerRole
+}
+
+pub fn role_to_string(role: Role) -> String {
+  case role {
+    SalesIntakeRole -> "sales_intake"
+    PurchaseRole -> "purchase"
+    ReceiveRole -> "receive"
+    DeliveryRole -> "delivery"
+    SalesPersonRole -> "sales_person"
+    ManagerRole -> "manager"
+  }
+}
+
+pub fn role_from_string(role: String) -> Option(Role) {
+  case role {
+    "sales_intake" -> Some(SalesIntakeRole)
+    "purchase" -> Some(PurchaseRole)
+    "receive" -> Some(ReceiveRole)
+    "delivery" -> Some(DeliveryRole)
+    "sales_person" -> Some(SalesPersonRole)
+    "manager" -> Some(ManagerRole)
+    _ -> option.None
+  }
 }
 
 pub type Product {
@@ -37,13 +60,13 @@ pub fn validate_product(product: Product) -> List(String) {
   |> list.append(quantidade_errors)
 }
 
-pub fn validate_products(products: List(Product)) -> option.Option(List(String)) {
+pub fn validate_products(products: List(Product)) -> Option(List(String)) {
   case
     products
     |> list.map(validate_product)
     |> list.flatten
   {
     [] -> option.None
-    errors -> option.Some(errors)
+    errors -> Some(errors)
   }
 }

@@ -1,4 +1,5 @@
 import gleam/erlang/process
+import gleam/option.{None}
 import mist
 import server/config
 import server/db
@@ -15,7 +16,7 @@ pub fn main() {
   let assert Ok(pool) = db.start(config.db_file) as "Lifeguard start error"
   let assert Ok(priv_directory) = wisp.priv_directory("server")
   let static_directory = priv_directory <> "/static"
-  let context = web.Context(db: pool, static_directory:)
+  let context = web.Context(db: pool, static_directory:, session: None)
   let handler = router.handle_request(_, context)
   let assert Ok(_) =
     handler

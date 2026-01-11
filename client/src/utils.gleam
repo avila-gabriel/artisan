@@ -1,8 +1,14 @@
 import formal/form.{type Form}
+import gleam/javascript/promise
 import gleam/list
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
+
+@external(javascript, "./file.ffi.mjs", "read_file_as_text")
+pub fn read_file_as_text(
+  input_id: String,
+) -> promise.Promise(Result(String, String))
 
 pub fn view_input(
   form: Form(data),

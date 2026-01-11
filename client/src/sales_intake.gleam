@@ -11,6 +11,7 @@ import gleam/pair
 import gleam/result
 import gleam/string
 import gsv
+import lustre
 import lustre/attribute
 import lustre/effect
 import lustre/element.{type Element}
@@ -18,12 +19,14 @@ import lustre/element/html
 import lustre/element/keyed
 import lustre/event
 import rsvp
-import shared.{view_input}
+import utils.{read_file_as_text, view_input}
 
-@external(javascript, "../file.ffi.mjs", "read_file_as_text")
-pub fn read_file_as_text(
-  input_id: String,
-) -> promise.Promise(Result(String, String))
+pub fn main() -> Nil {
+  let app = lustre.application(init, update, view)
+  let assert Ok(_) = lustre.start(app, "#app", Nil)
+
+  Nil
+}
 
 pub type UiProduct {
   UiProduct(key: String, product: Product)
@@ -67,7 +70,6 @@ fn csv_error_message(error: gsv.Error) -> String {
 
 pub type Model {
   Model(
-    username: String,
     products: List(UiProduct),
     status: String,
     errors: List(String),
@@ -88,14 +90,16 @@ pub type Msg {
   ResetSalesIntake
 }
 
-pub fn init(username: String) -> Model {
-  Model(
-    username,
-    [UiProduct("0", Product("", "", 1))],
-    "",
-    [],
-    new_supplier_form(),
-    None,
+pub fn init(_) -> #(Model, effect.Effect(Msg)) {
+  #(
+    Model(
+      [UiProduct("0", Product("", "", 1))],
+      "",
+      [],
+      new_supplier_form(),
+      None,
+    ),
+    effect.none(),
   )
 }
 
@@ -193,7 +197,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       effect.none(),
     )
 
-    ResetSalesIntake -> #(init(model.username), effect.none())
+    ResetSalesIntake -> init(Nil)
 
     SubmitSalesIntake ->
       case validate_submission(model) {
@@ -204,7 +208,7 @@ pub fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 
         Ok(domain_products) -> #(
           Model(..model, status: "Enviando venda…", errors: []),
-          submit_sale(model.username, domain_products, model.supplier),
+          submit_sale(domain_products, model.supplier),
         )
       }
 
@@ -247,7 +251,6 @@ pub fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 }
 
 fn submit_sale(
-  username: String,
   products: List(Product),
   supplier: Option(String),
 ) -> effect.Effect(Msg) {
@@ -255,7 +258,6 @@ fn submit_sale(
 
   let body =
     json.object([
-      #("username", json.string(username)),
       #("supplier", json.string(supplier)),
       #(
         "products",
@@ -304,10 +306,9 @@ fn validate_submission(model: Model) -> Result(List(Product), List(String)) {
 }
 
 pub fn view(model: Model) -> Element(Msg) {
-  let Model(username, products, status, errors, supplier_form, supplier) = model
+  let Model(products, status, errors, supplier_form, supplier) = model
 
   html.div([], [
-    html.p([], [html.text("Bem-Vindo " <> username)]),
     html.p([], [html.text(status)]),
     html.ul(
       [attribute.class("text-red-600 list-disc list-inside")],

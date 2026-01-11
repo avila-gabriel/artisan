@@ -1,5 +1,5 @@
 import gleeunit
-import roles/sales_intake
+import sales_intake
 
 pub fn main() -> Nil {
   gleeunit.main()

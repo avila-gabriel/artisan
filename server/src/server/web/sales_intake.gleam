@@ -11,11 +11,10 @@ import sqlight
 import wisp.{type Request, type Response}
 
 pub type RegisterInput {
-  RegisterInput(username: String, supplier: String, products: List(Product))
+  RegisterInput(supplier: String, products: List(Product))
 }
 
 fn register_decoder() -> decode.Decoder(RegisterInput) {
-  use username <- decode.field("username", decode.string)
   use supplier <- decode.field("supplier", decode.string)
 
   use products <- decode.field(
@@ -28,7 +27,7 @@ fn register_decoder() -> decode.Decoder(RegisterInput) {
     }),
   )
 
-  decode.success(RegisterInput(username:, supplier:, products:))
+  decode.success(RegisterInput(supplier:, products:))
 }
 
 fn nil_decoder() -> decode.Decoder(Nil) {
@@ -68,7 +67,7 @@ pub fn register(req: Request, ctx: Context) -> Response {
   case decode.run(json, register_decoder()) {
     Error(_) -> wisp.unprocessable_content()
 
-    Ok(RegisterInput(username, supplier, products)) -> {
+    Ok(RegisterInput(supplier, products)) -> {
       case common.validate_products(products) {
         option.Some(_) -> wisp.unprocessable_content()
 
@@ -80,7 +79,7 @@ pub fn register(req: Request, ctx: Context) -> Response {
           case
             db.with_transaction(ctx.db, 5000, 5000, fn(conn) {
               let #(sql1, params1, decoder1) =
-                sql.create_sales_intake(username, supplier, now)
+                sql.create_sales_intake(ctx.session.username, supplier, now)
 
               case
                 sqlight.query(
