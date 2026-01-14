@@ -15,7 +15,7 @@
     " A type with two possible values, `True` and `False`. Used to indicate whether\n"
     " things are... true or false!\n"
     "\n"
-    " It is often clearer and offers more type safety to define a custom type\n"
+    " Often is it clearer and offers more type safety to define a custom type\n"
     " than to use `Bool`. For example, rather than having a `is_teacher: Bool`\n"
     " field consider having a `role: SchoolRole` field where `SchoolRole` is a custom\n"
     " type that can be either `Student` or `Teacher`.\n"
@@ -299,7 +299,7 @@ to_string(Bool) ->
     " // -> \"Hello, Kamaka\"\n"
     " ```\n"
 ).
--spec guard(boolean(), BTS, fun(() -> BTS)) -> BTS.
+-spec guard(boolean(), BTA, fun(() -> BTA)) -> BTA.
 guard(Requirement, Consequence, Alternative) ->
     case Requirement of
         true ->
@@ -341,7 +341,7 @@ guard(Requirement, Consequence, Alternative) ->
     " // -> \"Welcome, User 54\"\n"
     " ```\n"
 ).
--spec lazy_guard(boolean(), fun(() -> BTT), fun(() -> BTT)) -> BTT.
+-spec lazy_guard(boolean(), fun(() -> BTB), fun(() -> BTB)) -> BTB.
 lazy_guard(Requirement, Consequence, Alternative) ->
     case Requirement of
         true ->

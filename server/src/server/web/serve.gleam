@@ -2,10 +2,11 @@ import gleam/option.{None, Some}
 import lustre/attribute
 import lustre/element
 import lustre/element/html
+import server/auth
 import server/web.{type Context}
 import wisp.{type Response}
 
-pub fn serve(ctx: Context, role: String) -> Response {
+pub fn serve(ctx: Context(auth.Authenticated), role: String) -> Response {
   case ctx.session {
     None -> wisp.redirect("/")
 

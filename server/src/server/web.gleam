@@ -1,10 +1,10 @@
-import gleam/option.{type Option}
-import server/auth
+import gleam/option.{type Option, Some}
+import server/auth.{type Session}
 import server/db
 import wisp.{type Request, type Response}
 
-pub type Context {
-  Context(db: db.Pool, static_directory: String, session: Option(auth.Session))
+pub type Context(session) {
+  Context(db: db.Pool, static_directory: String, session: Option(Session))
 }
 
 pub fn middleware(
@@ -19,4 +19,9 @@ pub fn middleware(
   use <- wisp.serve_static(req, under: "/static", from: "./priv/static")
 
   handle_request(req)
+}
+
+pub fn get_session(ctx: Context(auth.Authenticated)) -> Session {
+  let assert Some(session) = ctx.session
+  session
 }

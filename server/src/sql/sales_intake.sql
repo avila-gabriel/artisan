@@ -1,5 +1,5 @@
 -- name: CreateSalesIntake :one
-INSERT INTO sales_intakes (
+INSERT INTO sales_intake (
   username,
   supplier,
   created_at
@@ -9,7 +9,7 @@ INSERT INTO sales_intakes (
 RETURNING id;
 
 -- name: AddSalesIntakeProduct :exec
-INSERT INTO sales_intake_products (
+INSERT INTO sales_intake_product (
   sales_intake_id,
   nome,
   ambiente,

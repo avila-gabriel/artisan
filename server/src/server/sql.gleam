@@ -15,7 +15,7 @@ pub fn create_sales_intake(
   created_at created_at: Float,
 ) {
   let sql =
-    "INSERT INTO sales_intakes (
+    "INSERT INTO sales_intake (
   username,
   supplier,
   created_at
@@ -46,7 +46,7 @@ pub fn add_sales_intake_product(
   quantidade quantidade: Int,
 ) {
   let sql =
-    "INSERT INTO sales_intake_products (
+    "INSERT INTO sales_intake_product (
   sales_intake_id,
   nome,
   ambiente,

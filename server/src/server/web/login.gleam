@@ -1,67 +1,50 @@
 import common
-import formal/form.{type Form}
-import lustre/attribute
-import lustre/element
-import lustre/element/html
+import gleam/list
+import gleam/result
 import server/auth
-import server/web.{type Context}
+import server/config
 import wisp.{type Request, type Response}
 
-const cookie_name = "session"
+pub fn show() -> Response {
+  let html =
+    "<form method='post'>
+        <label>
+          Username
+          <input type='text' name='username'>
+        </label>
 
-pub type Data {
-  Data(username: String, password: String)
+        <label>
+          Password
+          <input type='password' name='password'>
+        </label>
+
+        <button type='submit'>Login</button>
+     </form>"
+
+  wisp.ok()
+  |> wisp.html_body(html)
 }
 
-fn form() -> Form(Data) {
-  form.new({
-    use username <- form.field("username", form.parse_string)
-    use password <- form.field("password", form.parse_string)
-    form.success(Data(username:, password:))
-  })
-}
-
-pub fn show(_req: Request, _ctx: Context) -> Response {
-  html.html([], [
-    html.head([], [
-      html.title([], ""),
-    ]),
-    html.body([], [
-      html.form([attribute.method("POST")], [
-        html.input([
-          attribute.type_("text"),
-          attribute.name("username"),
-        ]),
-        html.input([
-          attribute.type_("password"),
-          attribute.name("password"),
-        ]),
-        html.button([], [html.text("")]),
-      ]),
-    ]),
-  ])
-  |> element.to_document_string
-  |> wisp.html_response(200)
-}
-
-pub fn submit(req: Request, _ctx: Context) -> Response {
+pub fn submit(req: Request) -> Response {
   use formdata <- wisp.require_form(req)
 
-  let form =
-    form()
-    |> form.add_values(formdata.values)
+  let result = {
+    use username <- result.try(list.key_find(formdata.values, "username"))
+    use password <- result.try(list.key_find(formdata.values, "password"))
+    Ok(#(username, password))
+  }
 
-  case form.run(form) {
-    Ok(Data(username, password)) ->
+  case result {
+    Ok(#(username, password)) ->
       case auth.authenticate(username, password) {
-        Ok(role) -> {
-          let session = auth.Session(1, username, role)
+        Ok(#(role, id)) -> {
+          let session = auth.Session(id, username, role)
           let value = auth.encode_session(session)
 
           wisp.redirect("/" <> common.role_to_string(role))
           |> wisp.set_cookie(
             req,
-            cookie_name,
+            config.cookie_name,
             value,
             wisp.Signed,
             60 * 60 * 24 * 30,
@@ -71,11 +54,11 @@ pub fn submit(req: Request, _ctx: Context) -> Response {
         Error(_) -> wisp.redirect("/")
       }
 
-    Error(_) -> wisp.redirect("/")
+    Error(_) -> wisp.bad_request("Invalid form")
   }
 }
 
-pub fn logout(req: Request, _ctx: Context) -> Response {
+pub fn logout(req: Request) -> Response {
   wisp.redirect("/")
-  |> wisp.set_cookie(req, cookie_name, "", wisp.Signed, 0)
+  |> wisp.set_cookie(req, config.cookie_name, "", wisp.Signed, 0)
 }

@@ -4,6 +4,7 @@ import gleam/json
 import gleam/list
 import gleam/option
 import gleam/time/timestamp
+import server/auth
 import server/db
 import server/sql
 import server/web.{type Context}
@@ -61,13 +62,13 @@ fn insert_products(
   }
 }
 
-pub fn register(req: Request, ctx: Context) -> Response {
+pub fn register(req: Request, ctx: Context(auth.Authenticated)) -> Response {
   use json <- wisp.require_json(req)
 
   case decode.run(json, register_decoder()) {
     Error(_) -> wisp.unprocessable_content()
 
-    Ok(RegisterInput(supplier, products)) -> {
+    Ok(RegisterInput(supplier, products)) ->
       case common.validate_products(products) {
         option.Some(_) -> wisp.unprocessable_content()
 
@@ -76,55 +77,53 @@ pub fn register(req: Request, ctx: Context) -> Response {
             timestamp.system_time()
             |> timestamp.to_unix_seconds
 
-          case
-            db.with_transaction(ctx.db, 5000, 5000, fn(conn) {
-              let #(sql1, params1, decoder1) =
-                sql.create_sales_intake(ctx.session.username, supplier, now)
-
-              case
-                sqlight.query(
-                  sql1,
-                  on: conn,
-                  with: list.map(params1, db.parrot_to_sqlight),
-                  expecting: decoder1,
-                )
-              {
-                Error(e) -> Error(e)
-
-                Ok(rows) -> {
-                  case rows {
-                    [sql.CreateSalesIntake(id:), ..] -> {
-                      case insert_products(conn, id, products) {
-                        Ok(_) -> Ok(id)
-                        Error(e) -> Error(e)
-                      }
-                    }
-
-                    _ ->
-                      Error(sqlight.SqlightError(
-                        code: sqlight.GenericError,
-                        message: "Expected CreateSalesIntake to return one row with id",
-                        offset: -1,
-                      ))
-                  }
-                }
-              }
-            })
-          {
-            Ok(id) ->
-              wisp.json_response(
-                json.to_string(
-                  json.object([
-                    #("id", json.int(id)),
-                  ]),
-                ),
-                201,
-              )
-
-            Error(_) -> wisp.internal_server_error()
+          case register_db(ctx, supplier, products, now) {
+            Ok(_) -> wisp.created()
+            Error(e) -> {
+              echo e
+              wisp.internal_server_error()
+            }
           }
         }
       }
-    }
   }
+}
+
+pub fn register_db(
+  ctx: Context(auth.Authenticated),
+  supplier: String,
+  products: List(Product),
+  now: Float,
+) -> Result(Int, sqlight.Error) {
+  db.with_transaction(ctx.db, 5000, 5000, fn(conn) {
+    let #(sql1, params1, decoder1) =
+      sql.create_sales_intake(web.get_session(ctx).username, supplier, now)
+
+    case
+      sqlight.query(
+        sql1,
+        on: conn,
+        with: list.map(params1, db.parrot_to_sqlight),
+        expecting: decoder1,
+      )
+    {
+      Error(e) -> Error(e)
+
+      Ok(rows) ->
+        case rows {
+          [sql.CreateSalesIntake(id:), ..] ->
+            case insert_products(conn, id, products) {
+              Ok(Nil) -> Ok(id)
+              Error(e) -> Error(e)
+            }
+
+          _ ->
+            Error(sqlight.SqlightError(
+              code: sqlight.GenericError,
+              message: "Expected CreateSalesIntake to return one row with id",
+              offset: -1,
+            ))
+        }
+    }
+  })
 }

@@ -14,7 +14,7 @@
 ?MODULEDOC(" Use the `assert` keyword instead of this module.\n").
 
 -file("src/gleeunit/should.gleam", 6).
--spec equal(DOI, DOI) -> nil.
+-spec equal(DOF, DOF) -> nil.
 equal(A, B) ->
     case A =:= B of
         true ->
@@ -35,7 +35,7 @@ equal(A, B) ->
     end.
 
 -file("src/gleeunit/should.gleam", 19).
--spec not_equal(DOJ, DOJ) -> nil.
+-spec not_equal(DOG, DOG) -> nil.
 not_equal(A, B) ->
     case A /= B of
         true ->
@@ -56,7 +56,7 @@ not_equal(A, B) ->
     end.
 
 -file("src/gleeunit/should.gleam", 32).
--spec be_ok({ok, DOK} | {error, any()}) -> DOK.
+-spec be_ok({ok, DOH} | {error, any()}) -> DOH.
 be_ok(A) ->
     case A of
         {ok, Value} ->
@@ -76,7 +76,7 @@ be_ok(A) ->
     end.
 
 -file("src/gleeunit/should.gleam", 39).
--spec be_error({ok, any()} | {error, DOP}) -> DOP.
+-spec be_error({ok, any()} | {error, DOM}) -> DOM.
 be_error(A) ->
     case A of
         {error, Error} ->
@@ -96,7 +96,7 @@ be_error(A) ->
     end.
 
 -file("src/gleeunit/should.gleam", 46).
--spec be_some(gleam@option:option(DOS)) -> DOS.
+-spec be_some(gleam@option:option(DOP)) -> DOP.
 be_some(A) ->
     case A of
         {some, Value} ->

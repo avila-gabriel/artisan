@@ -10,14 +10,17 @@ pub type Session {
   Session(id: Int, username: String, role: Role)
 }
 
-pub fn authenticate(username: String, password: String) -> Result(Role, Nil) {
+pub fn authenticate(
+  username: String,
+  password: String,
+) -> Result(#(Role, Int), Nil) {
   case username, password {
-    "admin", "admin" -> Ok(ManagerRole)
-    "sales", "sales" -> Ok(SalesIntakeRole)
-    "purchase", "purchase" -> Ok(PurchaseRole)
-    "receive", "receive" -> Ok(ReceiveRole)
-    "delivery", "delivery" -> Ok(DeliveryRole)
-    "seller", "seller" -> Ok(SalesPersonRole)
+    "manager", "manager" -> Ok(#(ManagerRole, 0))
+    "sales_intake", "sales_intake" -> Ok(#(SalesIntakeRole, 1))
+    "purchase", "purchase" -> Ok(#(PurchaseRole, 2))
+    "receive", "receive" -> Ok(#(ReceiveRole, 3))
+    "delivery", "delivery" -> Ok(#(DeliveryRole, 4))
+    "sales_person", "sales_person" -> Ok(#(SalesPersonRole, 5))
     _, _ -> Error(Nil)
   }
 }
@@ -55,3 +58,7 @@ pub fn decode_session(raw: String) -> Option(Session) {
     Error(_) -> None
   }
 }
+
+pub type Authenticated
+
+pub type Unauthenticated
