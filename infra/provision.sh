@@ -67,11 +67,22 @@ cd artisan
 echo "== bootstrap machine =="
 make bootstrap
 
-echo "== deploy application =="
-make install
+echo "== deploy application (blue/green) =="
+cp infra/server-blue.service /etc/systemd/system/
+cp infra/server-green.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable server-blue server-green
+make update
 
 echo "== verifying service =="
-systemctl is-active --quiet server
+if systemctl is-active --quiet server-blue; then
+  echo "server-blue is active"
+elif systemctl is-active --quiet server-green; then
+  echo "server-green is active"
+else
+  echo "ERROR: neither server-blue nor server-green is active"
+  exit 1
+fi
 
 echo
 echo "== SUCCESS: deployment complete =="

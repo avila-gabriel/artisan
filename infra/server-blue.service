@@ -1,0 +1,18 @@
+[Unit]
+Description=Gleam Web Server (artisan blue)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/artisan/blue/server
+Environment=PORT=8000
+ExecStart=/usr/local/bin/gleam run
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

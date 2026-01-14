@@ -1,10 +1,11 @@
 [Unit]
-Description=Gleam Web Server (artisan/server)
+Description=Gleam Web Server (artisan green)
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/artisan/server
+WorkingDirectory=/opt/artisan/green/server
+Environment=PORT=8001
 ExecStart=/usr/local/bin/gleam run
 Restart=always
 RestartSec=5

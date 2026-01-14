@@ -2,6 +2,7 @@ import gleam/erlang/process.{type Name, type Subject}
 import gleam/otp/actor
 import gleam/otp/static_supervisor as supervisor
 import gleam/otp/supervision
+import gleam/result
 import lifeguard
 import parrot/dev
 import sqlight.{type Connection, type Error, SqlightError}
@@ -21,6 +22,7 @@ pub fn start(db_file: String) -> Result(Pool, actor.StartError) {
     lifeguard.new_with_initialiser(pool_name, 5000, fn(_self) {
       case open_connection(db_file) {
         Ok(conn) -> Ok(lifeguard.initialised(conn))
+
         Error(_) -> Error("sqlite init failed")
       }
     })
@@ -30,12 +32,10 @@ pub fn start(db_file: String) -> Result(Pool, actor.StartError) {
   let spec: supervision.ChildSpecification(supervisor.Supervisor) =
     lifeguard.supervised(builder, 5000)
 
-  let assert Ok(_) =
-    supervisor.new(supervisor.OneForOne)
-    |> supervisor.add(spec)
-    |> supervisor.start
-
-  Ok(process.named_subject(pool_name))
+  supervisor.new(supervisor.OneForOne)
+  |> supervisor.add(spec)
+  |> supervisor.start
+  |> result.map(fn(_pid) { process.named_subject(pool_name) })
 }
 
 fn apply_error_to_sqlight_error(err: lifeguard.ApplyError) -> Error {
