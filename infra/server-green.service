@@ -6,7 +6,8 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/artisan/green/server
 Environment=PORT=8001
-ExecStart=/usr/local/bin/gleam run
+Environment=PATH={{ERLANG_BIN_DIR}}:/usr/bin:/bin
+ExecStart={{GLEAM_BIN}} run
 Restart=always
 RestartSec=5
 

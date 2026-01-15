@@ -1,72 +1,122 @@
 APP=server
 PREFIX=/opt/artisan
-ERLANG_PREFIX=/opt/erlang/otp-28
-GLEAM_BIN=/usr/local/bin/gleam
-REBAR3_BIN=/usr/local/bin/rebar3
+ASDF_DIR=/opt/asdf
+DOMAIN=avilaville.online
+WWW_DOMAIN=www.$(DOMAIN)
+
+GLEAM_BIN=gleam
+REBAR3_BIN=rebar3
 
 BLUE_DIR=$(PREFIX)/blue
 GREEN_DIR=$(PREFIX)/green
-
 BLUE_PORT=8000
 GREEN_PORT=8001
 
-NGINX_SITE=/etc/nginx/sites-enabled/avilaville.site
+NGINX_SITE=/etc/nginx/sites-enabled/production
+NGINX_SITE_SRC=infra/production
 
 SHELL := /bin/bash
 .ONESHELL:
 .SHELLFLAGS := -euo pipefail -c
 
-# -------------------------------------------------
-# Infrastructure bootstrap (run once per VM)
-# -------------------------------------------------
-bootstrap:
-	apt update
+# =================================================
+# Machine setup (run once per VM)
+# =================================================
+env-setup:
 	apt install -y \
 		build-essential autoconf libncurses5-dev libssl-dev \
 		libwxgtk3.0-gtk3-dev libgl1-mesa-dev libglu1-mesa-dev \
 		libpng-dev libssh-dev unixodbc-dev xsltproc fop \
-		libxml2-utils curl git ca-certificates
+		libxml2-utils rsync nginx m4 certbot python3-certbot-nginx
 
-	if ! command -v kerl >/dev/null; then
-		curl -fsSL https://raw.githubusercontent.com/kerl/kerl/master/kerl -o /usr/local/bin/kerl
-		chmod +x /usr/local/bin/kerl
+	# asdf
+	if [ ! -d "$(ASDF_DIR)" ]; then
+		git clone https://github.com/asdf-vm/asdf.git $(ASDF_DIR) --branch v0.14.0
 	fi
 
-	if [ ! -d "$(ERLANG_PREFIX)" ]; then
-		kerl build 28.0 otp-28
-		kerl install otp-28 $(ERLANG_PREFIX)
+	if [ ! -f /etc/profile.d/asdf.sh ]; then
+		echo '. $(ASDF_DIR)/asdf.sh' > /etc/profile.d/asdf.sh
 	fi
 
-	# kerl activate is NOT nounset-safe: always source under set +u
 	set +u
-	. $(ERLANG_PREFIX)/activate
+	. $(ASDF_DIR)/asdf.sh
 	set -u
 
-	erl -noshell -eval 'io:format("OTP ~s~n",[erlang:system_info(otp_release)]), halt().'
+	asdf plugin list | grep -q '^erlang$$' || \
+		asdf plugin add erlang https://github.com/asdf-vm/asdf-erlang.git
+	asdf plugin list | grep -q '^rebar$$' || \
+		asdf plugin add rebar https://github.com/Stratus3D/asdf-rebar.git
+	asdf plugin list | grep -q '^gleam$$' || \
+		asdf plugin add gleam https://github.com/asdf-community/asdf-gleam.git
 
-	if [ ! -x "$(REBAR3_BIN)" ]; then
-		curl -fsSL https://s3.amazonaws.com/rebar3/rebar3 -o $(REBAR3_BIN)
-		chmod +x $(REBAR3_BIN)
+	asdf install
+
+	$(MAKE) runtime-sync
+	systemctl enable server-blue server-green
+
+define require_env
+	if [ ! -d "$(ASDF_DIR)" ]; then
+		echo "ERROR: env-setup not run (missing $(ASDF_DIR))"
+		exit 1
 	fi
-
-	# Source activate again only if you really need it; but if you do, do it safely.
-	set +u
-	. $(ERLANG_PREFIX)/activate
-	set -u
-	$(REBAR3_BIN) --version
-
-	if [ ! -x "$(GLEAM_BIN)" ]; then
-		VERSION="$$(curl -fsSL https://api.github.com/repos/gleam-lang/gleam/releases/latest | grep tag_name | sed -E 's/.*"v([^\"]+)".*/\1/')" 
-		curl -fsSL https://github.com/gleam-lang/gleam/releases/download/v$$VERSION/gleam-v$$VERSION-x86_64-unknown-linux-musl.tar.gz | tar xz
-		mv gleam $(GLEAM_BIN)
-		chmod +x $(GLEAM_BIN)
+	if [ ! -f "/etc/nginx/nginx.conf" ]; then
+		echo "ERROR: env-setup not run (nginx not installed)"
+		exit 1
 	fi
+endef
 
-	$(GLEAM_BIN) --version
+# =================================================
+# Public exposure (HTTPS ingress)
+# =================================================
+expose:
+	@echo ""
+	@echo "== Preparing to expose Artisan to the public =="
+	@echo ""
 
-# -------------------------------------------------
-# Gleam build helper
-# -------------------------------------------------
+	@echo "== Checking DNS resolution =="
+
+	@SERVER_IP="$$(curl -fsSL https://api.ipify.org)"; \
+	DNS_IPS="$$(getent ahostsv4 $(DOMAIN) | awk '{print $$1}' | sort -u)"; \
+	echo "Server IP: $$SERVER_IP"; \
+	echo "DNS IPs ($(DOMAIN)): $$DNS_IPS"; \
+	echo "$$DNS_IPS" | grep -qx "$$SERVER_IP" || \
+	{ echo "ERROR: $(DOMAIN) does not resolve to this server"; exit 1; }
+
+	@SERVER_IP="$$(curl -fsSL https://api.ipify.org)"; \
+	DNS_IPS="$$(getent ahostsv4 $(WWW_DOMAIN) | awk '{print $$1}' | sort -u)"; \
+	echo "Server IP: $$SERVER_IP"; \
+	echo "DNS IPs ($(WWW_DOMAIN)): $$DNS_IPS"; \
+	echo "$$DNS_IPS" | grep -qx "$$SERVER_IP" || \
+	{ echo "ERROR: $(WWW_DOMAIN) does not resolve to this server"; exit 1; }
+
+	@echo ""
+	@echo "== Checking TLS certificates =="
+
+	@test -f /etc/letsencrypt/live/$(DOMAIN)/fullchain.pem || \
+		{ echo "ERROR: TLS certificate not found for $(DOMAIN)"; exit 1; }
+	@test -f /etc/letsencrypt/live/$(DOMAIN)/privkey.pem || \
+		{ echo "ERROR: TLS private key not found for $(DOMAIN)"; exit 1; }
+
+	@echo ""
+	@echo "== TLS detected. Enabling public access =="
+
+	# install nginx site
+	rm -f /etc/nginx/sites-enabled/default
+	cp $(NGINX_SITE_SRC) /etc/nginx/sites-available/production
+	ln -sf /etc/nginx/sites-available/production $(NGINX_SITE)
+
+	nginx -t
+	systemctl enable nginx
+	systemctl restart nginx
+
+	@echo ""
+	@echo "== Public access enabled =="
+	@echo "https://$(DOMAIN)"
+	@echo ""
+
+# =================================================
+# Build helpers
+# =================================================
 define gleam_build
 	set -e
 	cd $(1)
@@ -81,113 +131,175 @@ define gleam_build
 	$(GLEAM_BIN) build
 endef
 
-# -------------------------------------------------
-# Build
-# -------------------------------------------------
 build-client:
-	set +u
-	. $(ERLANG_PREFIX)/activate
-	set -u
+	set +u; . $(ASDF_DIR)/asdf.sh; set -u
 	$(call gleam_build,client)
 	mkdir -p ../server/priv/static
-	$(GLEAM_BIN) run -m lustre/dev build --minify sales_intake --outdir=../server/priv/static
+	$(GLEAM_BIN) run -m lustre/dev build --minify sales_intake \
+		--outdir=../server/priv/static
 
 build-server:
-	set +u
-	. $(ERLANG_PREFIX)/activate
-	set -u
+	set +u; . $(ASDF_DIR)/asdf.sh; set -u
 	$(call gleam_build,server)
 	mkdir -p priv/migrations
 
 build: build-client build-server
 
-# -------------------------------------------------
-# Install into slots (never touch running one)
-# -------------------------------------------------
+# =================================================
+# Slot install (never touches running service)
+# =================================================
 install-blue: build
 	sudo mkdir -p $(BLUE_DIR)
 	sudo rsync -a --delete \
-		--exclude data \
-		--exclude .git \
-		--exclude build \
+		--exclude data --exclude .git --exclude build \
 		. $(BLUE_DIR)
 
 install-green: build
 	sudo mkdir -p $(GREEN_DIR)
 	sudo rsync -a --delete \
-		--exclude data \
-		--exclude .git \
-		--exclude build \
+		--exclude data --exclude .git --exclude build \
 		. $(GREEN_DIR)
 
-# -------------------------------------------------
-# Detect active slot
-# -------------------------------------------------
-define detect_active
-	if systemctl is-active --quiet server-blue; then echo blue; exit 0; fi
-	if systemctl is-active --quiet server-green; then echo green; exit 0; fi
-	echo none
+# =================================================
+# Data guard (for stateful deploys)
+# =================================================
+define require_data
+	if [ ! -d "$(PREFIX)/data" ]; then
+		echo "ERROR: $(PREFIX)/data directory missing"
+		exit 1
+	fi
+	if [ ! -f "$(PREFIX)/data/data.db" ]; then
+		echo "ERROR: required data.db not found"
+		exit 1
+	fi
 endef
 
-# -------------------------------------------------
-# Update: build + start new version ONLY
-# -------------------------------------------------
-update:
-	set -e
-	echo "== Updating repository =="
-	git fetch origin
-	if ! git diff --quiet; then
-		echo "ERROR: working tree has uncommitted changes"
+# =================================================
+# Active slot detection (nginx is truth)
+# =================================================
+define detect_active
+	port="$$(grep -Eo 'proxy_pass[[:space:]]+http://127\.0\.0\.1:[0-9]+' \
+		$(NGINX_SITE) | sed -E 's/.*:([0-9]+)/\1/')"
+
+	if [ "$$port" = "$(BLUE_PORT)" ]; then echo blue; \
+	elif [ "$$port" = "$(GREEN_PORT)" ]; then echo green; \
+	else echo none; fi
+endef
+
+# =================================================
+# Deploy on machine WITH existing data (migration)
+# =================================================
+deploy-existing:
+	set +u; . $(ASDF_DIR)/asdf.sh; set -u
+	$(call require_env)
+	$(call require_data)
+	echo "== Deploying with existing data (blue) =="
+	$(MAKE) install-blue
+	sudo systemctl start server-blue
+
+	echo ""
+	echo "============================================"
+	echo " Deployment complete"
+	echo ""
+	echo " Create the following DNS records in Namecheap:"
+	echo ""
+	IP=$$(curl -fsSL https://api.ipify.org)
+	echo "   A     @     $$IP"
+	echo "   A     www   $$IP"
+	echo ""
+	echo " URL:"
+	echo " https://ap.www.namecheap.com/Domains/DomainControlPanel/avilaville.online/advancedns"
+	echo "============================================"
+
+# =================================================
+# First deploy (run once per machine)
+# =================================================
+deploy:
+	$(call require_env)
+	ACTIVE=$$($(call detect_active))
+	if [ "$$ACTIVE" != "none" ]; then
+		echo "ERROR: deployment already exists"
 		exit 1
 	fi
+	set +u; . $(ASDF_DIR)/asdf.sh; set -u
+	echo "== First deploy: blue =="
+	$(MAKE) install-blue
+	sudo systemctl start server-blue
+	echo "== Blue running on :$(BLUE_PORT) =="
+
+	echo ""
+	echo "============================================"
+	echo " Deployment complete"
+	echo ""
+	echo " Create the following DNS records in Namecheap:"
+	echo ""
+	IP=$$(curl -fsSL https://api.ipify.org)
+	echo "   A     @     $$IP"
+	echo "   A     www   $$IP"
+	echo ""
+	echo " URL:"
+	echo " https://ap.www.namecheap.com/Domains/DomainControlPanel/avilaville.online/advancedns"
+	echo "============================================"
+
+# =================================================
+# Stage next version (no traffic change)
+# =================================================
+stage:
+	$(MAKE) runtime-sync
+	set +u; . $(ASDF_DIR)/asdf.sh; set -u
+
+	active=$$($(call detect_active))
+	if [ "$$active" = "none" ]; then
+		echo "error: no active deployment; use 'make deploy' or stage-force"
+		exit 1
+	fi
+
+	git fetch origin
+	git diff --quiet || { echo "error: dirty tree"; exit 1; }
 	git pull --ff-only
 
-	ACTIVE=$$($(call detect_active))
-	if [ "$$ACTIVE" = "blue" ]; then
-		NEW=green
-	elif [ "$$ACTIVE" = "green" ]; then
-		NEW=blue
+	if [ "$$active" = "blue" ]; then new=green; else new=blue; fi
+	echo "== staging $$new =="
+	$(MAKE) install-$$new
+	sudo systemctl start server-$$new
+
+
+stage-force:
+	set +u; . $(ASDF_DIR)/asdf.sh; set -u
+
+	active=$$($(call detect_active))
+
+	echo "== force staging (discarding local changes) =="
+
+	git fetch origin
+	git reset --hard origin/HEAD
+	$(MAKE) runtime-sync
+
+	if [ "$$active" = "none" ]; then
+		new=blue
+		echo "== no active deployment; staging blue =="
 	else
-		NEW=blue
+		if [ "$$active" = "blue" ]; then new=green; else new=blue; fi
+		echo "== staging $$new =="
 	fi
 
-	echo "== Active slot: $$ACTIVE =="
-	echo "== Installing into: $$NEW =="
+	$(MAKE) install-$$new
+	sudo systemctl start server-$$new
 
-	$(MAKE) install-$$NEW
-
-	sudo systemctl start server-$$NEW
-
-	if [ "$$NEW" = "blue" ]; then
-		echo "== New server running at http://127.0.0.1:$(BLUE_PORT) =="
-	else
-		echo "== New server running at http://127.0.0.1:$(GREEN_PORT) =="
-	fi
-
-	echo
-	echo "Inspect logs, curl it, fix crashes if needed."
-	echo "When ready, run: make switch"
-
-# -------------------------------------------------
-# Switch traffic (YOU decide when)
-# -------------------------------------------------
-switch:
-	set -e
+# =================================================
+# Promote staged version to production
+# =================================================
+promote:
 	ACTIVE=$$($(call detect_active))
 	if [ "$$ACTIVE" = "none" ]; then
-		echo "ERROR: no active server"
+		echo "ERROR: nothing to promote"
 		exit 1
 	fi
 
-	if [ "$$ACTIVE" = "blue" ]; then
-		NEW=green
-		NEW_PORT=$(GREEN_PORT)
-	else
-		NEW=blue
-		NEW_PORT=$(BLUE_PORT)
-	fi
+	if [ "$$ACTIVE" = "blue" ]; then NEW=green; NEW_PORT=$(GREEN_PORT); \
+	else NEW=blue; NEW_PORT=$(BLUE_PORT); fi
 
-	echo "== Switching nginx to $$NEW (:$$NEW_PORT) =="
+	echo "== Promoting $$NEW (:$$NEW_PORT) =="
 
 	sudo sed -i -E \
 		"s@(proxy_pass[[:space:]]+http://127\.0\.0\.1:)[0-9]+@\1$$NEW_PORT@" \
@@ -195,15 +307,35 @@ switch:
 
 	sudo nginx -t
 	sudo systemctl reload nginx
-
-	echo "== Stopping old server ($$ACTIVE) =="
 	sudo systemctl stop server-$$ACTIVE || true
 
-	echo "== Switch complete =="
+# =================================================
+# Runtime wiring (systemd, local config)
+# =================================================
+runtime-sync:
+	set +u; . $(ASDF_DIR)/asdf.sh; set -u
 
-# -------------------------------------------------
+	GLEAM_BIN="$$(asdf which gleam)"
+	ERL_BIN="$$(asdf which erl)"
+	ERLANG_BIN_DIR="$$(dirname $$ERL_BIN)"
+
+	sed \
+		-e "s|{{GLEAM_BIN}}|$$GLEAM_BIN|" \
+		-e "s|{{ERLANG_BIN_DIR}}|$$ERLANG_BIN_DIR|" \
+		infra/server-blue.service \
+		> /etc/systemd/system/server-blue.service
+
+	sed \
+		-e "s|{{GLEAM_BIN}}|$$GLEAM_BIN|" \
+		-e "s|{{ERLANG_BIN_DIR}}|$$ERLANG_BIN_DIR|" \
+		infra/server-green.service \
+		> /etc/systemd/system/server-green.service
+
+	systemctl daemon-reload
+
+# =================================================
 # Ops helpers
-# -------------------------------------------------
+# =================================================
 status:
 	systemctl is-active server-blue || true
 	systemctl is-active server-green || true
@@ -216,12 +348,10 @@ logs-green:
 
 logs-prod:
 	ACTIVE=$$($(call detect_active)); \
-	if [ "$$ACTIVE" = "none" ]; then echo "no prod running"; exit 1; fi; \
-	journalctl -u server-$$ACTIVE -f
+	[ "$$ACTIVE" != "none" ] && journalctl -u server-$$ACTIVE -f
 
 logs-preview:
 	ACTIVE=$$($(call detect_active)); \
 	if [ "$$ACTIVE" = "blue" ]; then journalctl -u server-green -f; \
-	elif [ "$$ACTIVE" = "green" ]; then journalctl -u server-blue -f; \
-	else echo "no preview running"; fi
+	elif [ "$$ACTIVE" = "green" ]; then journalctl -u server-blue -f; fi
 

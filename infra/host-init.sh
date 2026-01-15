@@ -10,12 +10,8 @@ fi
 echo "== installing base packages =="
 apt update
 apt install -y \
-  git make curl sudo ca-certificates \
-  build-essential autoconf rsync
+  git make curl sudo ca-certificates
 
-# -------------------------------------------------
-# Deploy key ceremony
-# -------------------------------------------------
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
 
@@ -49,14 +45,10 @@ echo "When done, press ENTER to continue."
 echo "==================================================="
 echo
 
-# must read from real TTY
 read -r _ </dev/tty
 
 ssh-keyscan github.com >> /root/.ssh/known_hosts
 
-# -------------------------------------------------
-# Clone + deploy
-# -------------------------------------------------
 cd /opt
 if [ ! -d artisan ]; then
   git clone git@github.com:avila-gabriel/artisan.git
@@ -64,26 +56,21 @@ fi
 
 cd artisan
 
-echo "== bootstrap machine =="
-make bootstrap
-
-echo "== deploy application (blue/green) =="
-cp infra/server-blue.service /etc/systemd/system/
-cp infra/server-green.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable server-blue server-green
-make update
-
-echo "== verifying service =="
-if systemctl is-active --quiet server-blue; then
-  echo "server-blue is active"
-elif systemctl is-active --quiet server-green; then
-  echo "server-green is active"
-else
-  echo "ERROR: neither server-blue nor server-green is active"
-  exit 1
-fi
+make env-setup
 
 echo
-echo "== SUCCESS: deployment complete =="
-
+echo "==================================================="
+echo "HOST INITIALIZATION COMPLETE"
+echo
+echo "Next steps (choose ONE):"
+echo
+echo "  Fresh deploy (no data yet):"
+echo "    make deploy"
+echo "    make promote"
+echo
+echo "  Migration (existing data):"
+echo "    rsync data.db → /opt/artisan/data/"
+echo "    make deploy-existing"
+echo "    make promote"
+echo
+echo "==================================================="

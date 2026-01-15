@@ -1,2 +1,5 @@
 *.pdf
 *.log
+*.img
+user-data
+meta-data
