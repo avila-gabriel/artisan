@@ -22,15 +22,15 @@ pub fn role_to_string(role: Role) -> String {
   }
 }
 
-pub fn role_from_string(role: String) -> Option(Role) {
+pub fn parse_role(role: String) -> Result(Role, Nil) {
   case role {
-    "sales_intake" -> Some(SalesIntakeRole)
-    "purchase" -> Some(PurchaseRole)
-    "receive" -> Some(ReceiveRole)
-    "delivery" -> Some(DeliveryRole)
-    "sales_person" -> Some(SalesPersonRole)
-    "manager" -> Some(ManagerRole)
-    _ -> option.None
+    "sales_intake" -> Ok(SalesIntakeRole)
+    "purchase" -> Ok(PurchaseRole)
+    "receive" -> Ok(ReceiveRole)
+    "delivery" -> Ok(DeliveryRole)
+    "sales_person" -> Ok(SalesPersonRole)
+    "manager" -> Ok(ManagerRole)
+    _ -> Error(Nil)
   }
 }
 

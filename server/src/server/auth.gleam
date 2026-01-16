@@ -1,10 +1,9 @@
 import common.{
   type Role, DeliveryRole, ManagerRole, PurchaseRole, ReceiveRole,
-  SalesIntakeRole, SalesPersonRole, role_from_string, role_to_string,
+  SalesIntakeRole, SalesPersonRole, role_to_string,
 }
 import gleam/dynamic/decode
 import gleam/json
-import gleam/option.{type Option, None, Some}
 
 pub type Session {
   Session(id: Int, username: String, role: Role)
@@ -42,21 +41,14 @@ pub fn session_decoder() -> decode.Decoder(Session) {
     "role",
     decode.string
       |> decode.then(fn(role_string) {
-        case role_from_string(role_string) {
-          Some(role) -> decode.success(role)
-          None -> decode.failure(SalesIntakeRole, expected: "Role")
+        case common.parse_role(role_string) {
+          Ok(role) -> decode.success(role)
+          Error(Nil) -> decode.failure(SalesIntakeRole, expected: "Role")
         }
       }),
   )
 
-  decode.success(Session(id:, username:, role: role))
-}
-
-pub fn decode_session(raw: String) -> Option(Session) {
-  case json.parse(raw, session_decoder()) {
-    Ok(session) -> Some(session)
-    Error(_) -> None
-  }
+  decode.success(Session(id:, username:, role:))
 }
 
 pub type Authenticated

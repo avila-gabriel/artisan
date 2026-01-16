@@ -1,6 +1,7 @@
 import gleam/http.{Get, Post}
+import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{Some}
 import server/auth
 import server/config
 import server/web.{type Context, Context, middleware}
@@ -17,13 +18,13 @@ pub fn handle_request(
 
   case wisp.get_cookie(req, config.cookie_name, wisp.Signed) {
     Ok(raw) ->
-      case auth.decode_session(raw) {
-        Some(session) -> {
+      case json.parse(raw, auth.session_decoder()) {
+        Ok(session) -> {
           let ctx: Context(auth.Authenticated) =
             Context(..ctx, session: Some(session))
           authenticated_request(req, ctx)
         }
-        None -> {
+        Error(_) -> {
           unauthenticated_request(req)
         }
       }

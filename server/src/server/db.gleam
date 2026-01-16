@@ -18,7 +18,7 @@ pub fn start(db_file: String) -> Result(Pool, actor.StartError) {
   let pool_name: Name(lifeguard.PoolMsg(WorkerMsg)) =
     process.new_name("sqlite_pool")
 
-  let builder =
+  let spec: supervision.ChildSpecification(supervisor.Supervisor) =
     lifeguard.new_with_initialiser(pool_name, 5000, fn(_self) {
       case open_connection(db_file) {
         Ok(conn) -> Ok(lifeguard.initialised(conn))
@@ -28,9 +28,7 @@ pub fn start(db_file: String) -> Result(Pool, actor.StartError) {
     })
     |> lifeguard.size(6)
     |> lifeguard.on_message(handle_worker_msg)
-
-  let spec: supervision.ChildSpecification(supervisor.Supervisor) =
-    lifeguard.supervised(builder, 5000)
+    |> lifeguard.supervised(5000)
 
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(spec)
@@ -67,16 +65,13 @@ pub fn with_connection(
   call_timeout: Int,
   run: fn(Connection) -> a,
 ) -> Result(a, Error) {
-  case
-    lifeguard.apply(pool, checkout_timeout, fn(worker_subject) {
-      process.call(worker_subject, call_timeout, fn(reply_to) {
-        GetConn(reply_to:)
-      })
+  lifeguard.apply(pool, checkout_timeout, fn(worker_subject) {
+    process.call(worker_subject, call_timeout, fn(reply_to) {
+      GetConn(reply_to:)
     })
-  {
-    Error(apply_err) -> Error(apply_error_to_sqlight_error(apply_err))
-    Ok(conn) -> Ok(run(conn))
-  }
+  })
+  |> result.map_error(apply_error_to_sqlight_error)
+  |> result.map(run)
 }
 
 pub fn with_transaction(
@@ -85,47 +80,30 @@ pub fn with_transaction(
   call_timeout: Int,
   run: fn(Connection) -> Result(a, Error),
 ) -> Result(a, Error) {
-  case
-    with_connection(pool, checkout_timeout, call_timeout, fn(conn) {
-      case sqlight.exec("BEGIN IMMEDIATE;", conn) {
-        Error(e) -> Error(e)
-
-        Ok(_) ->
-          case run(conn) {
-            Ok(val) ->
-              case sqlight.exec("COMMIT;", conn) {
-                Ok(_) -> Ok(val)
-                Error(e) -> {
-                  let _ = sqlight.exec("ROLLBACK;", conn)
-                  Error(e)
-                }
-              }
-
-            Error(e) -> {
-              let _ = sqlight.exec("ROLLBACK;", conn)
-              Error(e)
-            }
-          }
-      }
+  with_connection(pool, checkout_timeout, call_timeout, fn(conn) {
+    sqlight.exec("BEGIN IMMEDIATE;", conn)
+    |> result.try(fn(_) { run(conn) })
+    |> result.try(fn(val) {
+      sqlight.exec("COMMIT;", conn)
+      |> result.replace(val)
     })
-  {
-    Ok(Ok(val)) -> Ok(val)
-    Ok(Error(e)) -> Error(e)
-    Error(e) -> Error(e)
-  }
+    |> result.try_recover(fn(e) {
+      let _ = sqlight.exec("ROLLBACK;", conn)
+      Error(e)
+    })
+  })
+  |> result.flatten
 }
 
 pub fn open_connection(db_file: String) -> Result(Connection, Error) {
-  case sqlight.open("file:" <> db_file <> "?mode=rwc") {
-    Error(e) -> Error(e)
-    Ok(conn) -> {
-      let _ = sqlight.exec("PRAGMA journal_mode = WAL;", conn)
-      let _ = sqlight.exec("PRAGMA synchronous = NORMAL;", conn)
-      let _ = sqlight.exec("PRAGMA foreign_keys = ON;", conn)
-      let _ = sqlight.exec("PRAGMA busy_timeout = 5000;", conn)
-      Ok(conn)
-    }
-  }
+  sqlight.open("file:" <> db_file <> "?mode=rwc")
+  |> result.map(fn(conn) {
+    let _ = sqlight.exec("PRAGMA journal_mode = WAL;", conn)
+    let _ = sqlight.exec("PRAGMA synchronous = NORMAL;", conn)
+    let _ = sqlight.exec("PRAGMA foreign_keys = ON;", conn)
+    let _ = sqlight.exec("PRAGMA busy_timeout = 5000;", conn)
+    conn
+  })
 }
 
 pub fn parrot_to_sqlight(param: dev.Param) -> sqlight.Value {

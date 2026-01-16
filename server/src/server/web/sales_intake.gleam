@@ -1,6 +1,5 @@
 import common.{type Product, Product}
 import gleam/dynamic/decode
-import gleam/json
 import gleam/list
 import gleam/option
 import gleam/time/timestamp
