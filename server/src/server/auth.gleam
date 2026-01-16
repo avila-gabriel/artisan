@@ -1,9 +1,9 @@
-import common.{
-  type Role, DeliveryRole, ManagerRole, PurchaseRole, ReceiveRole,
-  SalesIntakeRole, SalesPersonRole, role_to_string,
-}
 import gleam/dynamic/decode
 import gleam/json
+import role.{
+  type Role, DeliveryRole, ManagerRole, PurchaseRole, ReceiveRole,
+  SalesIntakeRole, SalesPersonRole,
+}
 
 pub type Session {
   Session(id: Int, username: String, role: Role)
@@ -28,7 +28,7 @@ pub fn encode_session(session: Session) -> String {
   json.object([
     #("id", json.int(session.id)),
     #("username", json.string(session.username)),
-    #("role", json.string(role_to_string(session.role))),
+    #("role", json.string(role.to_string(session.role))),
   ])
   |> json.to_string
 }
@@ -41,7 +41,7 @@ pub fn session_decoder() -> decode.Decoder(Session) {
     "role",
     decode.string
       |> decode.then(fn(role_string) {
-        case common.parse_role(role_string) {
+        case role.parse(role_string) {
           Ok(role) -> decode.success(role)
           Error(Nil) -> decode.failure(SalesIntakeRole, expected: "Role")
         }

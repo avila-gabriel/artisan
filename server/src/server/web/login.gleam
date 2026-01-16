@@ -1,6 +1,6 @@
-import common
 import gleam/list
 import gleam/result
+import role
 import server/auth
 import server/config
 import wisp.{type Request, type Response}
@@ -41,7 +41,7 @@ pub fn submit(req: Request) -> Response {
           let session = auth.Session(id, username, role)
           let value = auth.encode_session(session)
 
-          wisp.redirect("/" <> common.role_to_string(role))
+          wisp.redirect("/" <> role.to_string(role))
           |> wisp.set_cookie(
             req,
             config.cookie_name,

@@ -2,38 +2,6 @@ import gleam/list
 import gleam/option.{type Option, Some}
 import gleam/string
 
-pub type Role {
-  SalesIntakeRole
-  PurchaseRole
-  ReceiveRole
-  DeliveryRole
-  SalesPersonRole
-  ManagerRole
-}
-
-pub fn role_to_string(role: Role) -> String {
-  case role {
-    SalesIntakeRole -> "sales_intake"
-    PurchaseRole -> "purchase"
-    ReceiveRole -> "receive"
-    DeliveryRole -> "delivery"
-    SalesPersonRole -> "sales_person"
-    ManagerRole -> "manager"
-  }
-}
-
-pub fn parse_role(role: String) -> Result(Role, Nil) {
-  case role {
-    "sales_intake" -> Ok(SalesIntakeRole)
-    "purchase" -> Ok(PurchaseRole)
-    "receive" -> Ok(ReceiveRole)
-    "delivery" -> Ok(DeliveryRole)
-    "sales_person" -> Ok(SalesPersonRole)
-    "manager" -> Ok(ManagerRole)
-    _ -> Error(Nil)
-  }
-}
-
 pub type Product {
   Product(nome: String, ambiente: String, quantidade: Int)
 }
