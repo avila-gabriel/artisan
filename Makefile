@@ -189,6 +189,34 @@ endef
 # =================================================
 # Deploy on machine WITH existing data (migration)
 # =================================================
+define post_deploy_instructions
+	echo ""
+	echo "============================================"
+	echo " Deployment complete"
+	echo ""
+	echo " Step 1 — Create the following DNS records in Namecheap:"
+	echo ""
+	IP=$$(curl -fsSL https://api.ipify.org)
+	echo "   A     @     $$IP"
+	echo "   A     www   $$IP"
+	echo ""
+	echo " URL:"
+	echo " https://ap.www.namecheap.com/Domains/DomainControlPanel/$(DOMAIN)/advancedns"
+	echo ""
+	echo " Step 2 — After DNS has propagated, run:"
+	echo ""
+	echo "   certbot certonly --nginx \\"
+	echo "     -d $(DOMAIN) \\"
+	echo "     -d $(WWW_DOMAIN)"
+	echo ""
+	echo " Step 3 — Enable public access and go live:"
+	echo ""
+	echo "   make expose"
+	echo "   make promote"
+	echo ""
+	echo "============================================"
+endef
+
 deploy-existing:
 	set +u; . $(ASDF_DIR)/asdf.sh; set -u
 	$(call require_env)
@@ -197,19 +225,7 @@ deploy-existing:
 	$(MAKE) install-blue
 	sudo systemctl start server-blue
 
-	echo ""
-	echo "============================================"
-	echo " Deployment complete"
-	echo ""
-	echo " Create the following DNS records in Namecheap:"
-	echo ""
-	IP=$$(curl -fsSL https://api.ipify.org)
-	echo "   A     @     $$IP"
-	echo "   A     www   $$IP"
-	echo ""
-	echo " URL:"
-	echo " https://ap.www.namecheap.com/Domains/DomainControlPanel/avilaville.online/advancedns"
-	echo "============================================"
+	$(call post_deploy_instructions)
 
 # =================================================
 # First deploy (run once per machine)
@@ -227,19 +243,7 @@ deploy:
 	sudo systemctl start server-blue
 	echo "== Blue running on :$(BLUE_PORT) =="
 
-	echo ""
-	echo "============================================"
-	echo " Deployment complete"
-	echo ""
-	echo " Create the following DNS records in Namecheap:"
-	echo ""
-	IP=$$(curl -fsSL https://api.ipify.org)
-	echo "   A     @     $$IP"
-	echo "   A     www   $$IP"
-	echo ""
-	echo " URL:"
-	echo " https://ap.www.namecheap.com/Domains/DomainControlPanel/avilaville.online/advancedns"
-	echo "============================================"
+	$(call post_deploy_instructions)
 
 # =================================================
 # Stage next version (no traffic change)
@@ -290,6 +294,8 @@ stage-force:
 # Promote staged version to production
 # =================================================
 promote:
+	@test -f $(NGINX_SITE) || \
+		{ echo "ERROR: nginx not exposed yet (run: make expose)"; exit 1; }
 	ACTIVE=$$($(call detect_active))
 	if [ "$$ACTIVE" = "none" ]; then
 		echo "ERROR: nothing to promote"

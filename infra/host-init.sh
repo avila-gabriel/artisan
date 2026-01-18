@@ -66,11 +66,15 @@ echo "Next steps (choose ONE):"
 echo
 echo "  Fresh deploy (no data yet):"
 echo "    make deploy"
+echo "    # After DNS is pointing here and certbot has been run:"
+echo "    make expose"
 echo "    make promote"
 echo
 echo "  Migration (existing data):"
 echo "    rsync data.db → /opt/artisan/data/"
 echo "    make deploy-existing"
+echo "    # After DNS is pointing here and certbot has been run:"
+echo "    make expose"
 echo "    make promote"
 echo
 echo "==================================================="
